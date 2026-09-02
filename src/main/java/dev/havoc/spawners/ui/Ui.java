@@ -27,14 +27,30 @@ import java.util.function.Consumer;
  */
 public final class Ui {
 
-    /** Shared palette so every screen reads as one plugin. */
-    public static final String ACCENT = "#b14dff";
-    public static final String ACCENT_DIM = "#7d35b8";
-    public static final String GOOD = "#5bd66f";
-    public static final String WARN = "#ffb454";
-    public static final String BAD = "#ff5d6c";
-    public static final String INK = "#c9c4d6";
-    public static final String FAINT = "#7d7a89";
+    /**
+     * Shared palette so every screen reads as one plugin.
+     * <p>
+     * These are loaded from the {@code theme:} block of config.yml by {@link #applyTheme} on enable
+     * and on every reload, so re-skinning the plugin never needs a rebuild. The defaults below are
+     * the red/white house theme.
+     */
+    public static String ACCENT = "#ff2b3d";
+    public static String ACCENT_DIM = "#8f0f1c";
+    public static String GOOD = "#ffffff";
+    public static String WARN = "#ff8a95";
+    public static String BAD = "#ff2b3d";
+    public static String INK = "#e8e8ea";
+    public static String FAINT = "#9b9ba1";
+
+    public static void applyTheme(dev.havoc.spawners.config.Settings settings) {
+        ACCENT = settings.themeAccent;
+        ACCENT_DIM = settings.themeAccentDim;
+        GOOD = settings.themeGood;
+        WARN = settings.themeWarn;
+        BAD = settings.themeBad;
+        INK = settings.themeInk;
+        FAINT = settings.themeFaint;
+    }
 
     private static final ClickCallback.Options CALLBACK_OPTIONS = ClickCallback.Options.builder()
             .uses(ClickCallback.UNLIMITED_USES)

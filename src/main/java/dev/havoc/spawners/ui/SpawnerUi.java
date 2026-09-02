@@ -184,6 +184,9 @@ public final class SpawnerUi {
                     p -> openStorage(p, spawner, current + 1)));
         }
 
+        buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drop a page</color>",
+                "Drops 45 stacks at your feet, the way the old plugin did", 150,
+                p -> dropOnePage(p, spawner)));
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Bulk withdraw</color>",
                 "Empty many storage pages at once", 150, p -> openBulkDrop(p, spawner)));
         buttons.add(Ui.button("<color:" + Ui.GOOD + ">$ Sell everything</color>",
@@ -217,6 +220,17 @@ public final class SpawnerUi {
                 p -> withdraw(p, spawner, sig, sig.maxStack())));
         buttons.add(Ui.button("<color:" + Ui.ACCENT + ">Fill my inventory</color>", null, 130,
                 p -> withdraw(p, spawner, sig, sig.maxStack() * 36)));
+        buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drop all on ground</color>",
+                "Spits every " + name + " out at your feet as loose stacks", 130, p -> {
+                    p.closeDialog();
+                    if (plugin.dropService().isRunning(spawner)) {
+                        plugin.messages().send(p, "bulk-drop.busy");
+                        return;
+                    }
+                    if (!plugin.dropService().dropItemToGround(p, spawner, sig)) {
+                        plugin.messages().send(p, "bulk-drop.nothing");
+                    }
+                }));
         if (unit > 0.0D && plugin.settings().economyEnabled) {
             buttons.add(Ui.button("<color:" + Ui.GOOD + ">Sell all " + name + "</color>", null, 130,
                     p -> sellOne(p, spawner, sig)));
@@ -347,6 +361,11 @@ public final class SpawnerUi {
                     .step(1.0F)
                     .build());
         }
+        inputs.add(DialogInput.bool("inv", Ui.line("Into my inventory instead of the ground"))
+                .initial(plugin.settings().preferPlayerInventory)
+                .onTrue("true")
+                .onFalse("false")
+                .build());
 
         List<ActionButton> buttons = new ArrayList<>();
         if (pages > 1) {
@@ -356,17 +375,17 @@ public final class SpawnerUi {
                         Float to = response.getFloat("to");
                         int first = from == null ? 1 : Math.round(from);
                         int last = to == null ? pages : Math.round(to);
-                        runBulk(p, spawner, first - 1, last - 1);
+                        runBulk(p, spawner, first - 1, last - 1, toInventory(response));
                     }));
         }
-        buttons.add(Ui.button("<color:" + Ui.BAD + ">⇩⇩ Withdraw everything</color>",
-                Numbers.plain(items) + " items", 150, p -> {
+        buttons.add(Ui.input("<color:" + Ui.BAD + ">⇩⇩ Withdraw everything</color>",
+                Numbers.plain(items) + " items", 150, (p, response) -> {
                     p.closeDialog();
                     if (plugin.dropService().isRunning(spawner)) {
                         plugin.messages().send(p, "bulk-drop.busy");
                         return;
                     }
-                    if (!plugin.dropService().dropAll(p, spawner)) {
+                    if (!plugin.dropService().dropAll(p, spawner, toInventory(response))) {
                         plugin.messages().send(p, "bulk-drop.nothing");
                         return;
                     }
@@ -380,13 +399,36 @@ public final class SpawnerUi {
                         p -> openStorage(p, spawner, 0)), 1));
     }
 
-    private void runBulk(Player player, SpawnerData spawner, int firstPage, int lastPage) {
+    /** Reads the "into my inventory" toggle, falling back to the configured default. */
+    private boolean toInventory(io.papermc.paper.dialog.DialogResponseView response) {
+        Boolean value = response.getBoolean("inv");
+        return value == null ? plugin.settings().preferPlayerInventory : value;
+    }
+
+    /** One page of loose stacks at the player's feet - the old plugin's drop button. */
+    private void dropOnePage(Player player, SpawnerData spawner) {
+        if (!player.hasPermission("havocspawners.bulkdrop")) {
+            plugin.messages().send(player, "no-permission");
+            return;
+        }
         player.closeDialog();
         if (plugin.dropService().isRunning(spawner)) {
             plugin.messages().send(player, "bulk-drop.busy");
             return;
         }
-        boolean started = plugin.dropService().dropPages(player, spawner, firstPage, lastPage);
+        if (!plugin.dropService().dropPages(player, spawner, 0, 0, false)) {
+            plugin.messages().send(player, "bulk-drop.nothing");
+        }
+    }
+
+    private void runBulk(Player player, SpawnerData spawner, int firstPage, int lastPage,
+                         boolean toInventory) {
+        player.closeDialog();
+        if (plugin.dropService().isRunning(spawner)) {
+            plugin.messages().send(player, "bulk-drop.busy");
+            return;
+        }
+        boolean started = plugin.dropService().dropPages(player, spawner, firstPage, lastPage, toInventory);
         if (!started) {
             plugin.messages().send(player, "bulk-drop.nothing");
             return;

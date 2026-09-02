@@ -19,7 +19,7 @@ public final class Messages {
     private final HavocSpawners plugin;
     private YamlConfiguration lang;
     private YamlConfiguration defaults;
-    private String prefix = "<gradient:#b14dff:#6c1fd4><bold>Havoc</bold></gradient> <dark_gray>»</dark_gray> ";
+    private String prefix = "<gradient:#ff2b3d:#ffffff><bold>Havoc</bold></gradient> <dark_gray>»</dark_gray> ";
 
     public Messages(HavocSpawners plugin) {
         this.plugin = plugin;

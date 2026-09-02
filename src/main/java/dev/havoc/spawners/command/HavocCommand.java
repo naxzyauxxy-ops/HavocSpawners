@@ -5,6 +5,7 @@ import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.migrate.ImportReport;
 import dev.havoc.spawners.spawner.BlockKey;
 import dev.havoc.spawners.spawner.SpawnerData;
+import dev.havoc.spawners.ui.Ui;
 import dev.havoc.spawners.util.Numbers;
 import dev.havoc.spawners.util.Text;
 import org.bukkit.Bukkit;
@@ -58,7 +59,7 @@ public final class HavocCommand implements TabExecutor {
     }
 
     private void help(CommandSender sender) {
-        sender.sendMessage(Text.mm("<gradient:#b14dff:#6c1fd4><bold>HavocSpawners</bold></gradient> "
+        sender.sendMessage(Text.mm("<gradient:" + Ui.ACCENT + ":" + Ui.ACCENT_DIM + "><bold>HavocSpawners</bold></gradient> "
                 + "<dark_gray>v" + plugin.getPluginMeta().getVersion() + "</dark_gray>"));
         line(sender, "/hs info", "Details about the spawner you are looking at");
         line(sender, "/hs list", "Open the spawner browser");
@@ -80,8 +81,8 @@ public final class HavocCommand implements TabExecutor {
     }
 
     private void line(CommandSender sender, String usage, String description) {
-        sender.sendMessage(Text.mm("<color:#7d7a89>│</color> <color:#b14dff>" + usage
-                + "</color> <color:#7d7a89>- " + description + "</color>"));
+        sender.sendMessage(Text.mm("<color:" + Ui.FAINT + ">│</color> <color:" + Ui.ACCENT + ">" + usage
+                + "</color> <color:" + Ui.FAINT + ">- " + description + "</color>"));
     }
 
     private void reload(CommandSender sender) {
@@ -178,9 +179,9 @@ public final class HavocCommand implements TabExecutor {
         plugin.messages().send(player, "near.header", Messages.of(
                 "count", String.valueOf(found.size()), "radius", String.valueOf(radius)));
         for (SpawnerData spawner : found) {
-            player.sendMessage(Text.mm("<color:#7d7a89>│</color> <color:#b14dff>"
-                    + spawner.displayType() + "</color> <color:#c9c4d6>×" + spawner.stackSize()
-                    + "</color> <color:#7d7a89>at " + spawner.position() + " · "
+            player.sendMessage(Text.mm("<color:" + Ui.FAINT + ">│</color> <color:" + Ui.ACCENT + ">"
+                    + spawner.displayType() + "</color> <color:" + Ui.INK + ">×" + spawner.stackSize()
+                    + "</color> <color:" + Ui.FAINT + ">at " + spawner.position() + " · "
                     + Numbers.compact(spawner.storage().totalItems()) + " items</color>"));
         }
     }
@@ -233,15 +234,15 @@ public final class HavocCommand implements TabExecutor {
         for (SpawnerData spawner : plugin.spawners().all()) {
             items += spawner.storage().totalItems();
         }
-        sender.sendMessage(Text.mm("<color:#b14dff>Spawners:</color> <white>"
+        sender.sendMessage(Text.mm("<color:" + Ui.ACCENT + ">Spawners:</color> <white>"
                 + Numbers.plain(plugin.spawners().size()) + "</white>"));
-        sender.sendMessage(Text.mm("<color:#b14dff>Stored items:</color> <white>"
+        sender.sendMessage(Text.mm("<color:" + Ui.ACCENT + ">Stored items:</color> <white>"
                 + Numbers.plain(items) + "</white>"));
-        sender.sendMessage(Text.mm("<color:#b14dff>Pending writes:</color> <white>"
+        sender.sendMessage(Text.mm("<color:" + Ui.ACCENT + ">Pending writes:</color> <white>"
                 + plugin.storage().pending() + "</white>"));
-        sender.sendMessage(Text.mm("<color:#b14dff>Bulk jobs running:</color> <white>"
+        sender.sendMessage(Text.mm("<color:" + Ui.ACCENT + ">Bulk jobs running:</color> <white>"
                 + plugin.dropService().activeJobs() + "</white>"));
-        sender.sendMessage(Text.mm("<color:#b14dff>Storage backend:</color> <white>"
+        sender.sendMessage(Text.mm("<color:" + Ui.ACCENT + ">Storage backend:</color> <white>"
                 + plugin.settings().storageMode + "</white>"));
     }
 
@@ -280,7 +281,7 @@ public final class HavocCommand implements TabExecutor {
                         "failed", String.valueOf(report.failed()),
                         "items", Numbers.plain(report.itemsMoved())));
                 for (String warning : report.warnings()) {
-                    sender.sendMessage(Text.mm("<color:#ffb454>! " + warning + "</color>"));
+                    sender.sendMessage(Text.mm("<color:" + Ui.WARN + ">! " + warning + "</color>"));
                 }
                 plugin.storage().flushSoon();
             });

@@ -12,6 +12,22 @@ language: en_US
 debug: false
 
 # ----------------------------------------------------------------------------
+# Theme
+#
+# Every colour used by the dialogs AND the chat messages comes from here.
+# Change a value, run /hs reload, and the whole plugin re-skins - no rebuild.
+# Any hex colour works ("#rrggbb").
+# ----------------------------------------------------------------------------
+theme:
+  accent: "#ff2b3d"       # primary red - titles, headings, main buttons
+  accent-dim: "#8f0f1c"   # deep red - the far end of title gradients
+  good: "#ffffff"         # success, money, positive toggles
+  warn: "#ff8a95"         # caution, destructive-but-fine actions
+  bad: "#ff2b3d"          # errors and refusals
+  ink: "#e8e8ea"          # body text
+  faint: "#9b9ba1"        # secondary / muted text
+
+# ----------------------------------------------------------------------------
 # Storage
 # ----------------------------------------------------------------------------
 storage:
@@ -95,9 +111,12 @@ natural-spawners:
 bulk-drop:
   stacks-per-tick: 24
   # Hard ceiling on loose item entities this plugin will create per request.
+  # One storage page is 45 stacks, so 600 is roughly 13 pages of ground items.
   max-item-entities: 600
-  # Fill the player's inventory first; only the overflow becomes ground items.
-  prefer-player-inventory: true
+  # false = withdrawals drop as loose stacks at your feet, the way the old plugin did.
+  # true  = fill your inventory first and only spill the overflow on the ground.
+  # Either way the dialog has a per-withdrawal toggle that overrides this default.
+  prefer-player-inventory: false
   merge-ground-stacks: true
   progress-actionbar: true
   max-pages-per-request: 4096

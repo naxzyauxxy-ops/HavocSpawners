@@ -88,6 +88,7 @@ public final class HavocSpawners extends JavaPlugin {
         this.settings = Settings.load(this);
         this.messages = new Messages(this);
         this.messages.reload(settings.language);
+        dev.havoc.spawners.ui.Ui.applyTheme(settings);
 
         this.upgrades = new UpgradeTree();
         this.upgrades.reload(this);
@@ -193,6 +194,7 @@ public final class HavocSpawners extends JavaPlugin {
         reloadConfig();
         this.settings = Settings.load(this);
         this.messages.reload(settings.language);
+        dev.havoc.spawners.ui.Ui.applyTheme(settings);
         this.upgrades.reload(this);
         this.lootRegistry.reload(this);
         this.lootEngine = new LootEngine(lootRegistry);

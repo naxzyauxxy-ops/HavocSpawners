@@ -20,6 +20,15 @@ public final class Settings {
     public String language = "en_US";
     public boolean debug;
 
+    // theme - drives every dialog and chat colour, reloadable without a rebuild
+    public String themeAccent = "#ff2b3d";
+    public String themeAccentDim = "#8f0f1c";
+    public String themeGood = "#ffffff";
+    public String themeWarn = "#ff8a95";
+    public String themeBad = "#ff2b3d";
+    public String themeInk = "#e8e8ea";
+    public String themeFaint = "#9b9ba1";
+
     // storage
     public StorageMode storageMode = StorageMode.SQLITE;
     public String serverName = "server1";
@@ -130,6 +139,14 @@ public final class Settings {
         s.language = c.getString("language", "en_US");
         s.debug = c.getBoolean("debug", false);
 
+        s.themeAccent = colour(c.getString("theme.accent"), s.themeAccent);
+        s.themeAccentDim = colour(c.getString("theme.accent-dim"), s.themeAccentDim);
+        s.themeGood = colour(c.getString("theme.good"), s.themeGood);
+        s.themeWarn = colour(c.getString("theme.warn"), s.themeWarn);
+        s.themeBad = colour(c.getString("theme.bad"), s.themeBad);
+        s.themeInk = colour(c.getString("theme.ink"), s.themeInk);
+        s.themeFaint = colour(c.getString("theme.faint"), s.themeFaint);
+
         s.storageMode = enumOf(StorageMode.class, c.getString("storage.mode", "SQLITE"), StorageMode.SQLITE);
         s.serverName = c.getString("storage.server-name", "server1");
         s.sqliteFile = c.getString("storage.sqlite.file", "spawners.db");
@@ -234,6 +251,18 @@ public final class Settings {
             s.requiredTools.addAll(fallback);
         }
         return s;
+    }
+
+    /** Accepts "#rrggbb" (with or without the hash); anything else keeps the built-in colour. */
+    private static String colour(String raw, String fallback) {
+        if (raw == null) {
+            return fallback;
+        }
+        String value = raw.trim();
+        if (!value.startsWith("#")) {
+            value = "#" + value;
+        }
+        return value.matches("#[0-9a-fA-F]{6}") ? value.toLowerCase(Locale.ROOT) : fallback;
     }
 
     private static <E extends Enum<E>> E enumOf(Class<E> type, String raw, E fallback) {

@@ -39,14 +39,16 @@ public final class DropService {
         private final AtomicLong deliveredItems = new AtomicLong();
         private final AtomicLong spawnedEntities = new AtomicLong();
         private final long startedAt = System.currentTimeMillis();
+        private final boolean toInventory;
         private ScheduledTask task;
         private Runnable onFinish;
 
-        Job(SpawnerData spawner, UUID player, long fromSlot, long slots) {
+        Job(SpawnerData spawner, UUID player, long fromSlot, long slots, boolean toInventory) {
             this.spawner = spawner;
             this.player = player;
             this.fromSlot = fromSlot;
             this.remainingSlots = slots;
+            this.toInventory = toInventory;
         }
 
         public long deliveredItems() {
@@ -81,17 +83,46 @@ public final class DropService {
      * @return false when another bulk job already owns this spawner
      */
     public boolean dropPages(Player player, SpawnerData spawner, int firstPage, int lastPage) {
+        return dropPages(player, spawner, firstPage, lastPage, plugin.settings().preferPlayerInventory);
+    }
+
+    /**
+     * @param toInventory true fills the player's inventory first; false drops loose stacks at their
+     *                    feet, which is the behaviour the old plugin had
+     */
+    public boolean dropPages(Player player, SpawnerData spawner, int firstPage, int lastPage,
+                             boolean toInventory) {
         int from = Math.max(0, Math.min(firstPage, lastPage));
         int to = Math.max(0, Math.max(firstPage, lastPage));
         int pages = Math.min(to - from + 1, plugin.settings().maxPagesPerRequest);
         long fromSlot = (long) from * VirtualStorage.SLOTS_PER_PAGE;
         long slots = (long) pages * VirtualStorage.SLOTS_PER_PAGE;
-        return start(player, spawner, fromSlot, slots);
+        return start(player, spawner, fromSlot, slots, null, toInventory);
     }
 
     /** Drains everything the spawner holds. */
     public boolean dropAll(Player player, SpawnerData spawner) {
-        return start(player, spawner, 0L, spawner.storage().usedSlots(), null);
+        return dropAll(player, spawner, plugin.settings().preferPlayerInventory);
+    }
+
+    public boolean dropAll(Player player, SpawnerData spawner, boolean toInventory) {
+        return start(player, spawner, 0L, spawner.storage().usedSlots(), null, toInventory);
+    }
+
+    /**
+     * Drops every stack of one item type at the player's feet.
+     * <p>
+     * The item is sorted to the front of storage first, so the existing slot-window machinery can
+     * drain exactly that material without a second code path.
+     */
+    public boolean dropItemToGround(Player player, SpawnerData spawner, ItemSig sig) {
+        long amount = spawner.storage().countOf(sig);
+        if (amount <= 0L) {
+            return false;
+        }
+        spawner.storage().sortPreferring(sig.material());
+        long stacks = (amount + sig.maxStack() - 1L) / sig.maxStack();
+        return start(player, spawner, 0L, stacks, null, false);
     }
 
     /**
@@ -99,21 +130,19 @@ public final class DropService {
      * Used when breaking a spawner: the data row may only disappear once its contents are handed over.
      */
     public boolean dropAllThen(Player player, SpawnerData spawner, Runnable onFinish) {
-        return start(player, spawner, 0L, spawner.storage().usedSlots(), onFinish);
+        return start(player, spawner, 0L, spawner.storage().usedSlots(), onFinish,
+                plugin.settings().directToInventory);
     }
 
-    private boolean start(Player player, SpawnerData spawner, long fromSlot, long slots) {
-        return start(player, spawner, fromSlot, slots, null);
-    }
-
-    private boolean start(Player player, SpawnerData spawner, long fromSlot, long slots, Runnable onFinish) {
+    private boolean start(Player player, SpawnerData spawner, long fromSlot, long slots,
+                          Runnable onFinish, boolean toInventory) {
         if (slots <= 0L) {
             return false;
         }
         if (running.containsKey(spawner.id()) || !spawner.tryLock()) {
             return false;
         }
-        Job job = new Job(spawner, player.getUniqueId(), fromSlot, slots);
+        Job job = new Job(spawner, player.getUniqueId(), fromSlot, slots, toInventory);
         job.onFinish = onFinish;
         running.put(spawner.id(), job);
 
@@ -170,7 +199,7 @@ public final class DropService {
         List<ItemStack> pending = new ArrayList<>(stacks);
         long delivered = 0L;
 
-        if (plugin.settings().preferPlayerInventory) {
+        if (job.toInventory) {
             Map<Integer, ItemStack> leftovers =
                     player.getInventory().addItem(pending.toArray(new ItemStack[0]));
             long before = totalOf(pending);

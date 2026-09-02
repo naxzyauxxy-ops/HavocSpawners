@@ -35,7 +35,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.1.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.2.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -78,13 +78,22 @@ HavocSpawners:
 
 - stores items as `long` counters per item signature, so a page is *derived* rather than stored;
 - converts only `bulk-drop.stacks-per-tick` virtual slots into real stacks per tick;
-- fills the player's inventory first and only spills the remainder onto the ground;
+- drops loose stacks at the player's feet, or fills their inventory first if they ask for that;
 - hard-caps loose item entities per request (`bulk-drop.max-item-entities`);
 - puts anything that could not be delivered straight back into storage — items are never destroyed;
 - shows live progress on the action bar and locks the spawner so two withdrawals cannot race.
 
-Open it from **Storage → Bulk withdraw**, pick a first and last page with the sliders, or hit
-*Withdraw everything*. The same engine drains an entire network from one button.
+**Where the items go.** By default withdrawals drop as loose stacks at your feet, the way the old
+plugin did — `bulk-drop.prefer-player-inventory: false`. Every withdrawal dialog also carries an
+*Into my inventory instead of the ground* toggle, so a player can override the default per action.
+
+Three ways to pull items out:
+
+- **Storage → Drop a page** — 45 stacks on the ground, one click, the old plugin's drop button.
+- **Storage → Bulk withdraw** — pick a first and last page with the sliders, or *Withdraw everything*.
+- **Storage → \<item\> → Drop all on ground** — every unit of one material as loose stacks.
+
+The same engine drains an entire network from one button.
 
 ---
 
@@ -165,7 +174,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.1.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.2.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -174,9 +183,22 @@ publish a GitHub release with the jar attached.
 
 ---
 
+## Theming
+
+The house theme is red on white. Every colour the plugin draws — dialogs *and* chat — comes from two
+places, both editable without touching the jar:
+
+- `config.yml` → `theme:` — the seven dialog colours (`accent`, `accent-dim`, `good`, `warn`, `bad`,
+  `ink`, `faint`). Any `#rrggbb` value works; an invalid one falls back to the built-in default.
+- `lang/en_US.yml` — the chat messages, written in MiniMessage, so they carry their own colours.
+
+Change either and run `/hs reload`. No rebuild.
+
+---
+
 ## Known scope
 
-- Dialog text is themed in code; chat messages live in `lang/`. Full dialog localisation is planned.
+- Dialog labels are English only; their colours are themeable but the wording is not yet in `lang/`.
 - Holograms are stubbed behind `hologram.enabled` and not yet rendered.
 - Shop integrations are read-only price lookups (EconomyShopGUI, ShopGUIPlus) reached reflectively,
   so a shop plugin update can never break spawner selling.

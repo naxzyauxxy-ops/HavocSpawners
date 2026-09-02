@@ -102,9 +102,9 @@ public final class AdminUi {
         int rank = 1;
         for (SpawnerData spawner : top) {
             String medal = switch (rank) {
-                case 1 -> "<color:#ffd166>①</color>";
-                case 2 -> "<color:#d9d9d9>②</color>";
-                case 3 -> "<color:#cd7f32>③</color>";
+                case 1 -> "<color:" + Ui.GOOD + "><bold>①</bold></color>";
+                case 2 -> "<color:" + Ui.INK + ">②</color>";
+                case 3 -> "<color:" + Ui.WARN + ">③</color>";
                 default -> "<color:" + Ui.FAINT + ">" + rank + "</color>";
             };
             body.add(Ui.text(medal + " <color:" + Ui.INK + ">" + spawner.displayType() + "</color> "
