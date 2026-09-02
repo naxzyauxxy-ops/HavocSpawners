@@ -35,7 +35,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.3.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.4.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -94,7 +94,8 @@ can override `prefer-player-inventory` per action.
 
 Three ways to pull items out:
 
-- **Storage → Drop a page** — throws 45 stacks, one click, the old plugin's drop button.
+- **Storage → Drop a page** — throws 45 stacks, one click, the old plugin's drop button. The
+  screen stays open and refreshes when the throw lands, so you can sit there and empty page after page.
 - **Storage → Bulk withdraw** — pick a first and last page with the sliders, or *Withdraw everything*.
 - **Storage → \<item\> → Drop all on ground** — every unit of one material, thrown out.
 
@@ -179,7 +180,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.3.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.4.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an

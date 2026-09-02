@@ -93,12 +93,21 @@ public final class DropService {
      */
     public boolean dropPages(Player player, SpawnerData spawner, int firstPage, int lastPage,
                              boolean toInventory) {
+        return dropPages(player, spawner, firstPage, lastPage, toInventory, null);
+    }
+
+    /**
+     * @param onFinish run once the last stack has left the spawner - used by the dialogs to refresh
+     *                 themselves in place instead of closing
+     */
+    public boolean dropPages(Player player, SpawnerData spawner, int firstPage, int lastPage,
+                             boolean toInventory, Runnable onFinish) {
         int from = Math.max(0, Math.min(firstPage, lastPage));
         int to = Math.max(0, Math.max(firstPage, lastPage));
         int pages = Math.min(to - from + 1, plugin.settings().maxPagesPerRequest);
         long fromSlot = (long) from * VirtualStorage.SLOTS_PER_PAGE;
         long slots = (long) pages * VirtualStorage.SLOTS_PER_PAGE;
-        return start(player, spawner, fromSlot, slots, null, toInventory);
+        return start(player, spawner, fromSlot, slots, onFinish, toInventory);
     }
 
     /** Drains everything the spawner holds. */
@@ -117,13 +126,17 @@ public final class DropService {
      * drain exactly that material without a second code path.
      */
     public boolean dropItemToGround(Player player, SpawnerData spawner, ItemSig sig) {
+        return dropItemToGround(player, spawner, sig, null);
+    }
+
+    public boolean dropItemToGround(Player player, SpawnerData spawner, ItemSig sig, Runnable onFinish) {
         long amount = spawner.storage().countOf(sig);
         if (amount <= 0L) {
             return false;
         }
         spawner.storage().sortPreferring(sig.material());
         long stacks = (amount + sig.maxStack() - 1L) / sig.maxStack();
-        return start(player, spawner, 0L, stacks, null, false);
+        return start(player, spawner, 0L, stacks, onFinish, false);
     }
 
     /**

@@ -185,8 +185,8 @@ public final class SpawnerUi {
         }
 
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drop a page</color>",
-                "Throws 45 stacks out where you are looking, like the old plugin", 150,
-                p -> dropOnePage(p, spawner)));
+                "Throws 45 stacks out where you are looking - the screen stays open so you can keep going",
+                150, p -> dropOnePage(p, spawner, current)));
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Bulk withdraw</color>",
                 "Empty many storage pages at once", 150, p -> openBulkDrop(p, spawner)));
         buttons.add(Ui.button("<color:" + Ui.GOOD + ">$ Sell everything</color>",
@@ -222,12 +222,14 @@ public final class SpawnerUi {
                 p -> withdraw(p, spawner, sig, sig.maxStack() * 36)));
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drop all on ground</color>",
                 "Throws every " + name + " out where you are looking", 130, p -> {
-                    p.closeDialog();
                     if (plugin.dropService().isRunning(spawner)) {
                         plugin.messages().send(p, "bulk-drop.busy");
                         return;
                     }
-                    if (!plugin.dropService().dropItemToGround(p, spawner, sig)) {
+                    // Stay on screen; the item is gone afterwards, so land back on storage.
+                    boolean started = plugin.dropService().dropItemToGround(p, spawner, sig,
+                            () -> reopenStorage(p, spawner, 0));
+                    if (!started) {
                         plugin.messages().send(p, "bulk-drop.nothing");
                     }
                 }));
@@ -405,20 +407,34 @@ public final class SpawnerUi {
         return value == null ? plugin.settings().preferPlayerInventory : value;
     }
 
-    /** One page of loose stacks at the player's feet - the old plugin's drop button. */
-    private void dropOnePage(Player player, SpawnerData spawner) {
+    /**
+     * Throws one page out - the old plugin's drop button.
+     * <p>
+     * The dialog is deliberately left open and refreshed once the throw finishes, so a player can
+     * sit on the storage screen and empty page after page without reopening it every time.
+     */
+    private void dropOnePage(Player player, SpawnerData spawner, int storagePage) {
         if (!player.hasPermission("havocspawners.bulkdrop")) {
             plugin.messages().send(player, "no-permission");
             return;
         }
-        player.closeDialog();
         if (plugin.dropService().isRunning(spawner)) {
             plugin.messages().send(player, "bulk-drop.busy");
             return;
         }
-        if (!plugin.dropService().dropPages(player, spawner, 0, 0, false)) {
+        boolean started = plugin.dropService().dropPages(player, spawner, 0, 0, false,
+                () -> reopenStorage(player, spawner, storagePage));
+        if (!started) {
             plugin.messages().send(player, "bulk-drop.nothing");
         }
+    }
+
+    /** Redraws the storage screen in place, clamped in case the page count shrank. */
+    private void reopenStorage(Player player, SpawnerData spawner, int page) {
+        if (!player.isOnline()) {
+            return;
+        }
+        openStorage(player, spawner, page);
     }
 
     private void runBulk(Player player, SpawnerData spawner, int firstPage, int lastPage,
