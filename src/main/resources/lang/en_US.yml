@@ -117,6 +117,11 @@ info:
   none: "<color:#ff8a95>Look at a Havoc spawner within 8 blocks.</color>"
 
 give:
+  # All of these are accepted, including the old SmartSpawner shop syntax:
+  #   /hs give Steve mob ZOMBIE 3
+  #   /spawner give Steve zombie 3
+  #   /spawner give spawner Steve zombie 3
+  #   /spawner give item_spawner Steve bone_block 3
   usage: "<color:#ff8a95>/hs give [player] (mob|item) [TYPE] [amount] [stack] [level]</color>"
   # <player> <type> <amount>
   success: "<color:#ffffff>Gave <color:#ff2b3d><amount></color>× <color:#ff2b3d><type></color> spawner to <white><player></white>.</color>"

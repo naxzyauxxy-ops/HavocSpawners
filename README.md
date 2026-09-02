@@ -35,7 +35,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.4.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.5.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -136,7 +136,26 @@ rather than lifetime averages, and `/hs top` ranks the best earners.
 | `/hs clearghosts` | `havocspawners.command.reload` | Drops spawners whose world is gone |
 | `/hs stats` | `havocspawners.command.reload` | Runtime counters |
 
-Aliases: `/havocspawners`, `/hspawners`, `/havoc`.
+Aliases: `/havocspawners`, `/hspawners`, `/havoc`, and — for drop-in compatibility with an existing
+SmartSpawner setup — `/spawner` and `/ss`.
+
+### Legacy give syntax
+
+`give` accepts the old SmartSpawner argument order as well as its own, so shop menus that fire
+`spawner give ...` through console keep working untouched. All of these are equivalent:
+
+```
+/hs give Steve mob ZOMBIE 3                    # native
+/spawner give Steve zombie 3                   # legacy, kind inferred
+/spawner give spawner Steve zombie 3           # legacy, explicit mob spawner
+/spawner give item_spawner Steve bone_block 3  # legacy, explicit item spawner
+```
+
+`[stack]` and `[level]` are optional trailing arguments on every form and default to 1. With no kind
+token the name is matched against entity types first, then materials.
+
+> Remove SmartSpawner before relying on `/spawner` and `/ss` — with both plugins installed, whichever
+> registers first wins the alias.
 
 Feature permissions: `havocspawners.use`, `.stack`, `.break`, `.changetype`, `.sell`, `.upgrade`,
 `.automation`, `.network`, `.bulkdrop`, `.admin`.
@@ -180,7 +199,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.4.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.5.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an

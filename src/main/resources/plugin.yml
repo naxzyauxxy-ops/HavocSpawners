@@ -26,7 +26,9 @@ commands:
   havocspawners:
     description: Main command for HavocSpawners
     usage: /havocspawners help
-    aliases: [ hs, hspawners, havoc ]
+    # 'spawner' and 'ss' are the old SmartSpawner aliases - keeping them means existing
+    # shop configs that run "spawner give ..." through console keep working unchanged.
+    aliases: [ hs, hspawners, havoc, spawner, ss ]
     permission: havocspawners.command.use
     permission-message: "You do not have permission to use HavocSpawners commands."
 

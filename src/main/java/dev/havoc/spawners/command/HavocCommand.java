@@ -94,50 +94,123 @@ public final class HavocCommand implements TabExecutor {
         plugin.messages().send(sender, "reloaded");
     }
 
+    private static boolean isMobToken(String token) {
+        return token.equals("spawner") || token.equals("mob") || token.equals("entity")
+                || token.equals("mob_spawner") || token.equals("mobspawner");
+    }
+
+    private static boolean isItemToken(String token) {
+        return token.equals("item") || token.equals("item_spawner") || token.equals("itemspawner");
+    }
+
+    /**
+     * Gives a spawner item.
+     * <p>
+     * Deliberately tolerant about argument order, because a lot of shop configs still fire the old
+     * SmartSpawner syntax through console. All of these work and mean the same thing:
+     * <pre>
+     *   /hs give &lt;player&gt; mob ZOMBIE 3            (native)
+     *   /spawner give &lt;player&gt; zombie 3            (legacy short form)
+     *   /spawner give spawner &lt;player&gt; zombie 3    (legacy, explicit kind)
+     *   /spawner give item_spawner &lt;player&gt; bone_block 3
+     * </pre>
+     * Trailing {@code [stack] [level]} are optional everywhere and default to 1.
+     */
     private void give(CommandSender sender, String[] args) {
         if (!sender.hasPermission("havocspawners.command.give")) {
             plugin.messages().send(sender, "no-permission");
             return;
         }
-        if (args.length < 4) {
+        List<String> rest = new ArrayList<>(Arrays.asList(args).subList(1, args.length));
+        if (rest.isEmpty()) {
             plugin.messages().send(sender, "give.usage");
             return;
         }
-        Player target = Bukkit.getPlayerExact(args[1]);
-        if (target == null) {
-            plugin.messages().send(sender, "player-not-found", Messages.of("player", args[1]));
+
+        // Optional kind token BEFORE the player name (legacy: "give spawner <player> ...").
+        Boolean itemMode = null;
+        String leading = rest.get(0).toLowerCase(Locale.ROOT);
+        if (isMobToken(leading)) {
+            itemMode = Boolean.FALSE;
+            rest.remove(0);
+        } else if (isItemToken(leading)) {
+            itemMode = Boolean.TRUE;
+            rest.remove(0);
+        }
+        if (rest.isEmpty()) {
+            plugin.messages().send(sender, "give.usage");
             return;
         }
-        String kind = args[2].toLowerCase(Locale.ROOT);
-        int amount = args.length > 4 ? parseInt(args[4], 1) : 1;
-        int stack = args.length > 5 ? parseInt(args[5], 1) : 1;
-        int level = args.length > 6 ? parseInt(args[6], 1) : 1;
 
-        ItemStack item;
-        String typeName;
-        if (kind.equals("item")) {
-            Material material = Material.matchMaterial(args[3].toUpperCase(Locale.ROOT));
-            if (material == null) {
-                plugin.messages().send(sender, "give.bad-material", Messages.of("value", args[3]));
-                return;
-            }
-            item = plugin.items().create(null, material, stack, level, amount);
-            typeName = material.name();
-        } else {
-            EntityType type;
-            try {
-                type = EntityType.valueOf(args[3].toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                plugin.messages().send(sender, "give.bad-type", Messages.of("value", args[3]));
-                return;
-            }
-            item = plugin.items().create(type, null, stack, level, amount);
-            typeName = type.name();
+        String playerName = rest.remove(0);
+        Player target = Bukkit.getPlayerExact(playerName);
+        if (target == null) {
+            plugin.messages().send(sender, "player-not-found", Messages.of("player", playerName));
+            return;
         }
+
+        // Optional kind token AFTER the player name (native: "give <player> mob ZOMBIE").
+        if (!rest.isEmpty()) {
+            String token = rest.get(0).toLowerCase(Locale.ROOT);
+            if (isMobToken(token)) {
+                itemMode = Boolean.FALSE;
+                rest.remove(0);
+            } else if (isItemToken(token)) {
+                itemMode = Boolean.TRUE;
+                rest.remove(0);
+            }
+        }
+        if (rest.isEmpty()) {
+            plugin.messages().send(sender, "give.usage");
+            return;
+        }
+
+        String typeName = rest.remove(0);
+        int amount = Math.max(1, rest.isEmpty() ? 1 : parseInt(rest.remove(0), 1));
+        int stack = Math.max(1, rest.isEmpty() ? 1 : parseInt(rest.remove(0), 1));
+        int level = Math.max(1, rest.isEmpty() ? 1 : parseInt(rest.remove(0), 1));
+
+        EntityType entity = null;
+        Material material = null;
+        if (itemMode == null) {
+            // No kind given - a mob name wins, otherwise fall back to a material.
+            entity = matchEntity(typeName);
+            if (entity == null) {
+                material = Material.matchMaterial(typeName.toUpperCase(Locale.ROOT));
+            }
+        } else if (itemMode) {
+            material = Material.matchMaterial(typeName.toUpperCase(Locale.ROOT));
+            if (material == null) {
+                plugin.messages().send(sender, "give.bad-material", Messages.of("value", typeName));
+                return;
+            }
+        } else {
+            entity = matchEntity(typeName);
+            if (entity == null) {
+                plugin.messages().send(sender, "give.bad-type", Messages.of("value", typeName));
+                return;
+            }
+        }
+        if (entity == null && material == null) {
+            plugin.messages().send(sender, "give.bad-type", Messages.of("value", typeName));
+            return;
+        }
+
+        ItemStack item = plugin.items().create(entity, material, stack, level, amount);
+        String label = entity != null ? entity.name() : material.name();
+
         target.getInventory().addItem(item).values()
-                .forEach(left -> target.getWorld().dropItem(target.getLocation(), left));
+                .forEach(left -> target.getWorld().dropItemNaturally(target.getLocation(), left));
         plugin.messages().send(sender, "give.success", Messages.of(
-                "player", target.getName(), "type", typeName, "amount", String.valueOf(amount)));
+                "player", target.getName(), "type", label, "amount", String.valueOf(amount)));
+    }
+
+    private static EntityType matchEntity(String raw) {
+        try {
+            return EntityType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private void list(CommandSender sender) {
@@ -312,33 +385,81 @@ public final class HavocCommand implements TabExecutor {
             return filter(List.of("yaml", "sqlite", "mysql"), args[1]);
         }
         if (sub.equals("give")) {
-            if (args.length == 2) {
-                return null;
-            }
-            if (args.length == 3) {
-                return filter(List.of("mob", "item"), args[2]);
-            }
-            if (args.length == 4) {
-                if (args[2].equalsIgnoreCase("item")) {
-                    List<String> materials = new ArrayList<>();
-                    for (Material material : Material.values()) {
-                        if (material.isItem()) {
-                            materials.add(material.name());
-                        }
-                    }
-                    return filter(materials, args[3]);
-                }
-                List<String> types = new ArrayList<>();
-                for (EntityType type : EntityType.values()) {
-                    types.add(type.name());
-                }
-                return filter(types, args[3]);
-            }
+            return completeGive(args);
         }
         if (sub.equals("near") && args.length == 2) {
             return filter(Arrays.asList("16", "32", "64", "128"), args[1]);
         }
         return out;
+    }
+
+    /**
+     * Completion for the tolerant give parser: works out which slot is being typed by replaying the
+     * already-typed tokens through the same rules {@link #give} uses.
+     */
+    private List<String> completeGive(String[] args) {
+        int last = args.length - 1;
+        String typing = args[last];
+
+        boolean kindSeen = false;
+        boolean itemKind = false;
+        boolean playerSeen = false;
+        boolean typeSeen = false;
+        int extras = 0;
+
+        for (int i = 1; i < last; i++) {
+            String token = args[i].toLowerCase(Locale.ROOT);
+            if (!kindSeen && !typeSeen && (isMobToken(token) || isItemToken(token))) {
+                kindSeen = true;
+                itemKind = isItemToken(token);
+                continue;
+            }
+            if (!playerSeen) {
+                playerSeen = true;
+                continue;
+            }
+            if (!typeSeen) {
+                typeSeen = true;
+                continue;
+            }
+            extras++;
+        }
+
+        List<String> out = new ArrayList<>();
+        if (!playerSeen) {
+            if (!kindSeen) {
+                out.add("spawner");
+                out.add("item_spawner");
+            }
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                out.add(online.getName());
+            }
+            return filter(out, typing);
+        }
+        if (!typeSeen) {
+            if (!kindSeen) {
+                out.add("mob");
+                out.add("item");
+            }
+            if (itemKind) {
+                for (Material material : Material.values()) {
+                    if (material.isItem()) {
+                        out.add(material.name());
+                    }
+                }
+            } else {
+                for (EntityType type : EntityType.values()) {
+                    out.add(type.name());
+                }
+            }
+            return filter(out, typing);
+        }
+        return switch (extras) {
+            case 0 -> filter(List.of("1", "8", "16", "32", "64"), typing);
+            case 1 -> filter(List.of("1", "2", "4", "8", "16"), typing);
+            case 2 -> filter(List.of("1", "2", "3", "4", "5"), typing);
+            default -> List.of();
+        };
     }
 
     private static List<String> filter(List<String> source, String prefix) {
