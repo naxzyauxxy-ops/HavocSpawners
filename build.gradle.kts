@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.havoc"
-version = "1.0.0"
+version = "1.0.1"
 description = "Dialog-driven virtual spawners for Paper 1.21.x"
 
 java {
@@ -55,9 +55,12 @@ tasks {
         archiveFileName.set("HavocSpawners-${project.version}.jar")
 
         relocate("com.zaxxer.hikari", "dev.havoc.spawners.libs.hikari")
-        relocate("org.sqlite", "dev.havoc.spawners.libs.sqlite")
         relocate("org.mariadb.jdbc", "dev.havoc.spawners.libs.mariadb")
         relocate("org.slf4j", "dev.havoc.spawners.libs.slf4j")
+        // org.sqlite is deliberately NOT relocated: sqlite-jdbc loads a native library whose JNI
+        // entry points are hard-coded to "Java_org_sqlite_core_NativeDB_*". Renaming the package
+        // makes those symbols unresolvable and every connection dies with UnsatisfiedLinkError.
+        // Paper gives each plugin its own class loader, so leaving it in place is safe.
 
         exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
         exclude("META-INF/maven/**")

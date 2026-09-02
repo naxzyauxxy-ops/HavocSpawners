@@ -85,6 +85,9 @@ public final class SqlStorage {
             if (parent != null && !parent.exists() && !parent.mkdirs()) {
                 plugin.getLogger().warning("Could not create the data folder for SQLite.");
             }
+            // sqlite-jdbc unpacks a native library at runtime. Some hosts mount /tmp noexec, which
+            // fails the load, so point it at our own data folder instead.
+            System.setProperty("org.sqlite.tmpdir", plugin.getDataFolder().getAbsolutePath());
             config.setDriverClassName(org.sqlite.JDBC.class.getName());
             config.setJdbcUrl("jdbc:sqlite:" + file.getAbsolutePath());
             // SQLite is a single writer; more than one connection only creates lock contention.
