@@ -29,6 +29,16 @@ public final class Settings {
     public String themeInk = "#e8e8ea";
     public String themeFaint = "#9b9ba1";
 
+    // bedrock (Geyser/Floodgate)
+    public boolean bedrockEnabled = true;
+    public boolean bedrockForceForms;
+    public String bedrockAccent = "c";
+    public String bedrockGood = "f";
+    public String bedrockWarn = "6";
+    public String bedrockBad = "4";
+    public String bedrockInk = "f";
+    public String bedrockFaint = "7";
+
     // storage
     public StorageMode storageMode = StorageMode.SQLITE;
     public String serverName = "server1";
@@ -149,6 +159,15 @@ public final class Settings {
         s.themeInk = colour(c.getString("theme.ink"), s.themeInk);
         s.themeFaint = colour(c.getString("theme.faint"), s.themeFaint);
 
+        s.bedrockEnabled = c.getBoolean("bedrock.enabled", true);
+        s.bedrockForceForms = c.getBoolean("bedrock.force-forms-for-java", false);
+        s.bedrockAccent = legacyCode(c.getString("bedrock.colors.accent"), s.bedrockAccent);
+        s.bedrockGood = legacyCode(c.getString("bedrock.colors.good"), s.bedrockGood);
+        s.bedrockWarn = legacyCode(c.getString("bedrock.colors.warn"), s.bedrockWarn);
+        s.bedrockBad = legacyCode(c.getString("bedrock.colors.bad"), s.bedrockBad);
+        s.bedrockInk = legacyCode(c.getString("bedrock.colors.ink"), s.bedrockInk);
+        s.bedrockFaint = legacyCode(c.getString("bedrock.colors.faint"), s.bedrockFaint);
+
         s.storageMode = enumOf(StorageMode.class, c.getString("storage.mode", "SQLITE"), StorageMode.SQLITE);
         s.serverName = c.getString("storage.server-name", "server1");
         s.sqliteFile = c.getString("storage.sqlite.file", "spawners.db");
@@ -267,6 +286,15 @@ public final class Settings {
             value = "#" + value;
         }
         return value.matches("#[0-9a-fA-F]{6}") ? value.toLowerCase(Locale.ROOT) : fallback;
+    }
+
+    /** A single legacy colour character (0-9, a-f); anything else keeps the default. */
+    private static String legacyCode(String raw, String fallback) {
+        if (raw == null) {
+            return fallback;
+        }
+        String value = raw.trim().replace("&", "").replace("§", "").toLowerCase(Locale.ROOT);
+        return value.length() == 1 && "0123456789abcdef".indexOf(value.charAt(0)) >= 0 ? value : fallback;
     }
 
     private static <E extends Enum<E>> E enumOf(Class<E> type, String raw, E fallback) {

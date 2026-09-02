@@ -9,6 +9,8 @@ load: POSTWORLD
 prefix: HavocSpawners
 
 softdepend:
+  - floodgate
+  - Geyser-Spigot
   - Vault
   - PlaceholderAPI
   - WorldGuard

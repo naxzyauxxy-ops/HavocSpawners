@@ -37,6 +37,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ main
 
     public void openMain(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openMain(player, spawner);
+            return;
+        }
         List<DialogBody> body = new ArrayList<>();
         body.add(Ui.icon(iconStack(spawner)));
         body.add(Ui.text("<color:" + Ui.ACCENT + "><bold>" + spawner.displayType() + "</bold></color>"
@@ -96,7 +100,7 @@ public final class SpawnerUi {
         player.showDialog(Ui.multi(base, buttons, exitButton(), 2));
     }
 
-    private String statusLine(SpawnerData spawner) {
+    String statusLine(SpawnerData spawner) {
         if (spawner.stopped()) {
             return "<color:" + Ui.BAD + ">Stopped</color>";
         }
@@ -109,14 +113,14 @@ public final class SpawnerUi {
         return "<color:" + Ui.GOOD + ">Running</color>";
     }
 
-    private static String fillColor(double ratio) {
+    static String fillColor(double ratio) {
         if (ratio >= 0.95D) {
             return Ui.BAD;
         }
         return ratio >= 0.75D ? Ui.WARN : Ui.GOOD;
     }
 
-    private ItemStack iconStack(SpawnerData spawner) {
+    ItemStack iconStack(SpawnerData spawner) {
         Material icon = plugin.lootEngine().iconFor(spawner);
         return new ItemStack(icon == null || icon.isAir() ? Material.SPAWNER : icon);
     }
@@ -132,6 +136,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ storage
 
     public void openStorage(Player player, SpawnerData spawner, int page) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openStorage(player, spawner, page);
+            return;
+        }
         List<Map.Entry<ItemSig, Long>> entries = spawner.storage().orderedEntries();
         int pages = Math.max(1, (entries.size() + TYPES_PER_PAGE - 1) / TYPES_PER_PAGE);
         int current = Numbers.clamp(page, 0, pages - 1);
@@ -199,6 +207,10 @@ public final class SpawnerUi {
     }
 
     public void openItemActions(Player player, SpawnerData spawner, ItemSig sig) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openItemActions(player, spawner, sig);
+            return;
+        }
         long amount = spawner.storage().countOf(sig);
         double unit = plugin.prices().priceOf(sig.template(), plugin.settings());
         String name = SpawnerItems.pretty(sig.material().name());
@@ -264,7 +276,7 @@ public final class SpawnerUi {
                         p -> openStorage(p, spawner, 0)), 2));
     }
 
-    private void withdraw(Player player, SpawnerData spawner, ItemSig sig, long maxAmount) {
+    void withdraw(Player player, SpawnerData spawner, ItemSig sig, long maxAmount) {
         long available = spawner.storage().countOf(sig);
         long wanted = Math.min(available, maxAmount);
         if (wanted <= 0L) {
@@ -298,7 +310,7 @@ public final class SpawnerUi {
         openItemActions(player, spawner, sig);
     }
 
-    private void sellOne(Player player, SpawnerData spawner, ItemSig sig) {
+    void sellOne(Player player, SpawnerData spawner, ItemSig sig) {
         if (!player.hasPermission("havocspawners.sell")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -329,6 +341,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ bulk drop
 
     public void openBulkDrop(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openBulkDrop(player, spawner);
+            return;
+        }
         if (!player.hasPermission("havocspawners.bulkdrop")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -413,7 +429,7 @@ public final class SpawnerUi {
      * The dialog is deliberately left open and refreshed once the throw finishes, so a player can
      * sit on the storage screen and empty page after page without reopening it every time.
      */
-    private void dropOnePage(Player player, SpawnerData spawner, int storagePage) {
+    void dropOnePage(Player player, SpawnerData spawner, int storagePage) {
         if (!player.hasPermission("havocspawners.bulkdrop")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -430,14 +446,14 @@ public final class SpawnerUi {
     }
 
     /** Redraws the storage screen in place, clamped in case the page count shrank. */
-    private void reopenStorage(Player player, SpawnerData spawner, int page) {
+    void reopenStorage(Player player, SpawnerData spawner, int page) {
         if (!player.isOnline()) {
             return;
         }
         openStorage(player, spawner, page);
     }
 
-    private void runBulk(Player player, SpawnerData spawner, int firstPage, int lastPage,
+    void runBulk(Player player, SpawnerData spawner, int firstPage, int lastPage,
                          boolean toInventory) {
         player.closeDialog();
         if (plugin.dropService().isRunning(spawner)) {
@@ -456,6 +472,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ sell
 
     public void openSell(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openSell(player, spawner);
+            return;
+        }
         if (!player.hasPermission("havocspawners.sell")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -513,7 +533,7 @@ public final class SpawnerUi {
         player.showDialog(Ui.confirm(base, yes, no));
     }
 
-    private void claimExp(Player player, SpawnerData spawner) {
+    void claimExp(Player player, SpawnerData spawner) {
         long exp = spawner.storedExp();
         if (exp <= 0L) {
             plugin.messages().send(player, "exp.empty");
@@ -530,6 +550,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ stack
 
     public void openStack(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openStack(player, spawner);
+            return;
+        }
         if (!player.hasPermission("havocspawners.stack")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -564,7 +588,7 @@ public final class SpawnerUi {
         player.showDialog(Ui.multi(base, buttons, backButton(spawner), 1));
     }
 
-    private int countMatchingInInventory(Player player, SpawnerData spawner) {
+    int countMatchingInInventory(Player player, SpawnerData spawner) {
         int count = 0;
         for (ItemStack stack : player.getInventory().getContents()) {
             if (stack == null || !plugin.items().isHavocSpawner(stack)) {
@@ -584,7 +608,7 @@ public final class SpawnerUi {
         return spawner.entityType() == plugin.items().readEntityType(stack);
     }
 
-    private void changeStack(Player player, SpawnerData spawner, int delta) {
+    void changeStack(Player player, SpawnerData spawner, int delta) {
         if (delta == 0) {
             return;
         }
@@ -653,6 +677,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ upgrades
 
     public void openUpgrade(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openUpgrade(player, spawner);
+            return;
+        }
         if (!player.hasPermission("havocspawners.upgrade")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -710,6 +738,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ automation
 
     public void openAutomation(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openAutomation(player, spawner);
+            return;
+        }
         if (!player.hasPermission("havocspawners.automation")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -771,6 +803,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ networks
 
     public void openNetwork(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openNetwork(player, spawner);
+            return;
+        }
         if (!player.hasPermission("havocspawners.network")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -848,6 +884,10 @@ public final class SpawnerUi {
     }
 
     public void openNetworkOverview(Player player, String network, SpawnerData origin) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openNetworkOverview(player, network, origin);
+            return;
+        }
         List<SpawnerData> members = plugin.networks().members(player.getUniqueId(), network);
 
         long items = 0L;
@@ -933,6 +973,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ analytics
 
     public void openAnalytics(Player player, SpawnerData spawner) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openAnalytics(player, spawner);
+            return;
+        }
         List<DialogBody> body = new ArrayList<>();
         int hours = plugin.settings().analyticsHistoryHours;
         body.add(Ui.icon(iconStack(spawner)));
@@ -963,6 +1007,10 @@ public final class SpawnerUi {
     // ------------------------------------------------------------------ filters
 
     public void openFilters(Player player, SpawnerData spawner, int page) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openFilters(player, spawner, page);
+            return;
+        }
         List<Material> candidates = new ArrayList<>();
         for (Map.Entry<ItemSig, Long> entry : spawner.storage().orderedEntries()) {
             if (!candidates.contains(entry.getKey().material())) {

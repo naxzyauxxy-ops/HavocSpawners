@@ -31,6 +31,10 @@ public final class AdminUi {
     }
 
     public void openList(Player player, int page, UUID ownerFilter) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openList(player, page, ownerFilter);
+            return;
+        }
         List<SpawnerData> spawners = new ArrayList<>(
                 ownerFilter == null ? plugin.spawners().all() : plugin.spawners().ownedBy(ownerFilter));
         spawners.sort(Comparator.comparingLong((SpawnerData s) -> -s.storage().totalItems()));
@@ -90,6 +94,10 @@ public final class AdminUi {
     }
 
     public void openLeaderboard(Player player, UUID ownerFilter) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openLeaderboard(player, ownerFilter);
+            return;
+        }
         List<SpawnerData> top = plugin.analytics()
                 .topEarners(ownerFilter, plugin.settings().leaderboardSize);
 
@@ -128,6 +136,10 @@ public final class AdminUi {
     }
 
     public void openPrices(Player player, int page) {
+        if (plugin.bedrock().useForms(player)) {
+            plugin.bedrockUi().openPrices(player, page);
+            return;
+        }
         List<Map.Entry<Material, Double>> prices = new ArrayList<>(plugin.prices().customPrices().entrySet());
         prices.sort(Comparator.comparingDouble((Map.Entry<Material, Double> e) -> -e.getValue()));
 

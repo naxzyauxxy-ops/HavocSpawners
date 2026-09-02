@@ -1,5 +1,6 @@
 package dev.havoc.spawners;
 
+import dev.havoc.spawners.bedrock.BedrockBridge;
 import dev.havoc.spawners.command.HavocCommand;
 import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.config.Settings;
@@ -22,6 +23,7 @@ import dev.havoc.spawners.spawner.SpawnerManager;
 import dev.havoc.spawners.storage.SqlStorage;
 import dev.havoc.spawners.task.DropService;
 import dev.havoc.spawners.ui.AdminUi;
+import dev.havoc.spawners.ui.BedrockUi;
 import dev.havoc.spawners.ui.SpawnerUi;
 import dev.havoc.spawners.util.Sched;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
@@ -68,6 +70,8 @@ public final class HavocSpawners extends JavaPlugin {
 
     private SpawnerUi spawnerUi;
     private AdminUi adminUi;
+    private BedrockBridge bedrock;
+    private BedrockUi bedrockUi;
     private SmartSpawnerImporter importer;
 
     private final Map<UUID, String> pendingLinks = new ConcurrentHashMap<>();
@@ -111,6 +115,8 @@ public final class HavocSpawners extends JavaPlugin {
         this.dropService = new DropService(this);
         this.spawnerUi = new SpawnerUi(this);
         this.adminUi = new AdminUi(this);
+        this.bedrock = new BedrockBridge(this);
+        this.bedrockUi = new BedrockUi(this);
         this.importer = new SmartSpawnerImporter(this);
 
         try {
@@ -138,6 +144,8 @@ public final class HavocSpawners extends JavaPlugin {
         for (Player player : Bukkit.getOnlinePlayers()) {
             spawners.tracker().update(player);
         }
+
+        bedrock.reload();
 
         spawners.startTicking();
         automation.start();
@@ -200,6 +208,7 @@ public final class HavocSpawners extends JavaPlugin {
         this.lootEngine = new LootEngine(lootRegistry);
         this.prices.reload(this);
         this.economy.reload(this);
+        this.bedrock.reload();
         this.spawners.recomputeAll();
         this.spawners.startTicking();
         this.automation.start();
@@ -293,6 +302,14 @@ public final class HavocSpawners extends JavaPlugin {
 
     public AdminUi adminUi() {
         return adminUi;
+    }
+
+    public BedrockBridge bedrock() {
+        return bedrock;
+    }
+
+    public BedrockUi bedrockUi() {
+        return bedrockUi;
     }
 
     public SmartSpawnerImporter importer() {

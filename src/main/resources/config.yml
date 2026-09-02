@@ -28,6 +28,30 @@ theme:
   faint: "#9b9ba1"        # secondary / muted text
 
 # ----------------------------------------------------------------------------
+# Bedrock support (Geyser + Floodgate)
+#
+# Bedrock clients cannot see Java dialog screens at all - Geyser does not
+# translate those packets - so without this a Bedrock player right-clicking a
+# spawner would get nothing. When Floodgate is installed they are served the
+# same screens as native Bedrock forms instead. Java players are unaffected.
+#
+# No extra plugin is required: with Floodgate absent, everyone keeps dialogs.
+# ----------------------------------------------------------------------------
+bedrock:
+  enabled: true
+  # Send Bedrock forms to Java players too. Only useful for testing the forms.
+  force-forms-for-java: false
+  # Bedrock forms only understand the 16 legacy colour codes, so the hex theme
+  # above is mapped onto these. Use a single character (0-9, a-f).
+  colors:
+    accent: "c"           # red
+    good: "f"             # white
+    warn: "6"             # gold
+    bad: "4"              # dark red
+    ink: "f"              # body text
+    faint: "7"            # muted text
+
+# ----------------------------------------------------------------------------
 # Storage
 # ----------------------------------------------------------------------------
 storage:

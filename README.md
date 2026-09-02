@@ -27,7 +27,8 @@ It is a ground-up replacement for a SmartSpawner-style setup, with three things 
 |---|---|
 | Server | Paper 1.21.6 or newer (Folia supported) |
 | Java | 21 |
-| Optional | Vault (selling/upgrades), EconomyShopGUI or ShopGUIPlus (prices) |
+| Optional | Vault (selling/upgrades), EconomyShopGUI or ShopGUIPlus (prices), Floodgate (Bedrock) |
+| Clients | Java and Bedrock (see below) |
 
 The plugin refuses to enable below 1.21.6, because the Dialog API does not exist there.
 
@@ -35,7 +36,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.5.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.6.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -199,12 +200,45 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.5.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.6.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
 artifact. Push a tag starting with `v` (or run the workflow manually with *release* checked) to
 publish a GitHub release with the jar attached.
+
+---
+
+## Java and Bedrock
+
+Bedrock clients **cannot see Java dialog screens** — Geyser does not translate those packets — so on
+a cross-play server a Bedrock player right-clicking a spawner would get nothing at all. HavocSpawners
+detects them through Floodgate and sends the same screens as **native Bedrock forms** instead.
+
+Everything is covered: the spawner menu, storage browser, per-item actions, bulk withdraw (with real
+Bedrock sliders and a toggle), sell confirmation, stacking, upgrades, automation, networks, filters,
+analytics, the spawner browser, leaderboard and price list. Every button routes through the exact
+same code the Java dialogs use, so behaviour is identical — only the presentation differs.
+
+The Floodgate and Cumulus APIs are reached entirely by reflection, so:
+
+- there is **no extra dependency** to install or keep in version-sync;
+- with Floodgate absent, `available()` stays false and every player simply keeps the Java dialogs;
+- if a future Geyser release renames something, the forms degrade to a logged warning rather than an
+  error spam or a broken menu.
+
+```yaml
+bedrock:
+  enabled: true
+  force-forms-for-java: false   # true = send forms to Java players too, for testing
+  colors:                       # Bedrock only understands the 16 legacy codes
+    accent: "c"                 # the hex theme above is mapped onto these
+    good: "f"
+    ...
+```
+
+Two things worth knowing: Bedrock forms carry no item icons, so storage rows are shown as
+`Name / count` text; and Bedrock has no hex colour support, hence the separate legacy palette.
 
 ---
 
