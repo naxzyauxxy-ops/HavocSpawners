@@ -81,7 +81,9 @@ public final class Settings {
     public int stacksPerTick = 24;
     public int maxItemEntities = 600;
     public boolean preferPlayerInventory = true;
-    public boolean mergeGroundStacks = true;
+    public boolean throwFromLook = true;
+    public double throwStrength = 0.3D;
+    public int pickupDelayTicks = 20;
     public boolean progressActionbar = true;
     public int maxPagesPerRequest = 4096;
 
@@ -199,8 +201,10 @@ public final class Settings {
 
         s.stacksPerTick = Numbers.clamp(c.getInt("bulk-drop.stacks-per-tick", 24), 1, 512);
         s.maxItemEntities = Numbers.clamp(c.getInt("bulk-drop.max-item-entities", 600), 1, 20_000);
-        s.preferPlayerInventory = c.getBoolean("bulk-drop.prefer-player-inventory", true);
-        s.mergeGroundStacks = c.getBoolean("bulk-drop.merge-ground-stacks", true);
+        s.preferPlayerInventory = c.getBoolean("bulk-drop.prefer-player-inventory", false);
+        s.throwFromLook = c.getBoolean("bulk-drop.throw-from-look", true);
+        s.throwStrength = Math.max(0.0D, Math.min(2.0D, c.getDouble("bulk-drop.throw-strength", 0.3D)));
+        s.pickupDelayTicks = Numbers.clamp(c.getInt("bulk-drop.pickup-delay-ticks", 20), 0, 32767);
         s.progressActionbar = c.getBoolean("bulk-drop.progress-actionbar", true);
         s.maxPagesPerRequest = Numbers.clamp(c.getInt("bulk-drop.max-pages-per-request", 4096), 1, 1_000_000);
 

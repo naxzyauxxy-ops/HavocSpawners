@@ -185,7 +185,7 @@ public final class SpawnerUi {
         }
 
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drop a page</color>",
-                "Drops 45 stacks at your feet, the way the old plugin did", 150,
+                "Throws 45 stacks out where you are looking, like the old plugin", 150,
                 p -> dropOnePage(p, spawner)));
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Bulk withdraw</color>",
                 "Empty many storage pages at once", 150, p -> openBulkDrop(p, spawner)));
@@ -221,7 +221,7 @@ public final class SpawnerUi {
         buttons.add(Ui.button("<color:" + Ui.ACCENT + ">Fill my inventory</color>", null, 130,
                 p -> withdraw(p, spawner, sig, sig.maxStack() * 36)));
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drop all on ground</color>",
-                "Spits every " + name + " out at your feet as loose stacks", 130, p -> {
+                "Throws every " + name + " out where you are looking", 130, p -> {
                     p.closeDialog();
                     if (plugin.dropService().isRunning(spawner)) {
                         plugin.messages().send(p, "bulk-drop.busy");

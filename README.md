@@ -35,7 +35,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.2.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.3.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -78,20 +78,25 @@ HavocSpawners:
 
 - stores items as `long` counters per item signature, so a page is *derived* rather than stored;
 - converts only `bulk-drop.stacks-per-tick` virtual slots into real stacks per tick;
-- drops loose stacks at the player's feet, or fills their inventory first if they ask for that;
+- throws stacks out along the player's line of sight, or fills their inventory first if asked;
 - hard-caps loose item entities per request (`bulk-drop.max-item-entities`);
 - puts anything that could not be delivered straight back into storage — items are never destroyed;
 - shows live progress on the action bar and locks the spawner so two withdrawals cannot race.
 
-**Where the items go.** By default withdrawals drop as loose stacks at your feet, the way the old
-plugin did — `bulk-drop.prefer-player-inventory: false`. Every withdrawal dialog also carries an
-*Into my inventory instead of the ground* toggle, so a player can override the default per action.
+**Where the items go.** By default withdrawals are *thrown* — each stack spawns just below eye level
+and is launched along your line of sight with a little random spread, exactly like pressing Q. They
+arc out in front of you instead of piling up on your feet, so you can aim them into a hopper, a
+minecart or a shulker. Tune it with `throw-from-look`, `throw-strength` and `pickup-delay-ticks`, or
+set `throw-from-look: false` to go back to plain drops underfoot.
+
+Every withdrawal dialog also carries an *Into my inventory instead of the ground* toggle, so a player
+can override `prefer-player-inventory` per action.
 
 Three ways to pull items out:
 
-- **Storage → Drop a page** — 45 stacks on the ground, one click, the old plugin's drop button.
+- **Storage → Drop a page** — throws 45 stacks, one click, the old plugin's drop button.
 - **Storage → Bulk withdraw** — pick a first and last page with the sliders, or *Withdraw everything*.
-- **Storage → \<item\> → Drop all on ground** — every unit of one material as loose stacks.
+- **Storage → \<item\> → Drop all on ground** — every unit of one material, thrown out.
 
 The same engine drains an entire network from one button.
 
@@ -174,7 +179,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.2.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.3.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an

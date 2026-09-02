@@ -113,11 +113,22 @@ bulk-drop:
   # Hard ceiling on loose item entities this plugin will create per request.
   # One storage page is 45 stacks, so 600 is roughly 13 pages of ground items.
   max-item-entities: 600
-  # false = withdrawals drop as loose stacks at your feet, the way the old plugin did.
-  # true  = fill your inventory first and only spill the overflow on the ground.
+  # false = withdrawals come out as loose stacks, the way the old plugin did.
+  # true  = fill your inventory first and only throw the overflow.
   # Either way the dialog has a per-withdrawal toggle that overrides this default.
   prefer-player-inventory: false
-  merge-ground-stacks: true
+
+  # Stacks are thrown along your line of sight, exactly like pressing Q - they arc
+  # out in front of you instead of piling up on your feet.
+  # Set false to just drop them at the player's feet instead.
+  throw-from-look: true
+  # How hard they are thrown. 0.3 matches a vanilla player drop; raise it to
+  # scatter stacks further, lower it to keep the pile tight.
+  throw-strength: 0.3
+  # Ticks before the thrown stacks can be picked back up (20 = 1 second).
+  # A vanilla player drop uses 40; 0 means instant pickup.
+  pickup-delay-ticks: 20
+
   progress-actionbar: true
   max-pages-per-request: 4096
 

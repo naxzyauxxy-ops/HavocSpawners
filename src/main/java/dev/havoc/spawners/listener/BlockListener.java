@@ -4,6 +4,7 @@ import dev.havoc.spawners.HavocSpawners;
 import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.spawner.BlockKey;
 import dev.havoc.spawners.spawner.SpawnerData;
+import dev.havoc.spawners.util.ItemThrow;
 import dev.havoc.spawners.util.Numbers;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -198,14 +199,14 @@ public final class BlockListener implements Listener {
         if (plugin.settings().directToInventory) {
             Map<Integer, ItemStack> leftovers = player.getInventory().addItem(items.toArray(new ItemStack[0]));
             for (ItemStack leftover : leftovers.values()) {
-                if (leftover != null && player.getWorld() != null) {
-                    player.getWorld().dropItem(player.getLocation(), leftover);
+                if (leftover != null) {
+                    ItemThrow.deliver(player, leftover, plugin.settings());
                 }
             }
             return;
         }
         for (ItemStack item : items) {
-            player.getWorld().dropItemNaturally(player.getLocation(), item);
+            ItemThrow.deliver(player, item, plugin.settings());
         }
     }
 

@@ -82,11 +82,11 @@ bulk-drop:
   # <items> <pages>  (action bar, no prefix)
   progress: "<color:#ff2b3d>⇩</color> <white><items></white> <color:#9b9ba1>items · <pages> pages left</color>"
   # <items> <seconds>
-  done: "<color:#ffffff>Dropped <color:#ff2b3d><items></color> items in <color:#ff2b3d><seconds></color>.</color>"
+  done: "<color:#ffffff>Withdrew <color:#ff2b3d><items></color> items in <color:#ff2b3d><seconds></color>.</color>"
   busy: "<color:#ff8a95>A withdrawal is already running on that spawner.</color>"
   nothing: "<color:#ff8a95>There is nothing to withdraw.</color>"
   # <pages>
-  started: "<color:#ffffff>Dropping <color:#ff2b3d><pages></color> pages at your feet...</color>"
+  started: "<color:#ffffff>Throwing out <color:#ff2b3d><pages></color> pages...</color>"
 
 # ---------------------------------------------------------------- spawners
 spawner:

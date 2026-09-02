@@ -5,6 +5,7 @@ import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.spawner.ItemSig;
 import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.spawner.VirtualStorage;
+import dev.havoc.spawners.util.ItemThrow;
 import dev.havoc.spawners.util.Numbers;
 import dev.havoc.spawners.util.Text;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
@@ -209,25 +210,17 @@ public final class DropService {
 
         List<ItemStack> undelivered = new ArrayList<>();
         if (!pending.isEmpty()) {
-            Location where = player.getLocation();
             int cap = plugin.settings().maxItemEntities;
             for (ItemStack stack : pending) {
                 if (stack == null || stack.getAmount() <= 0) {
                     continue;
                 }
-                if (job.spawnedEntities.get() >= cap) {
+                if (job.spawnedEntities.get() >= cap || player.getWorld() == null) {
                     undelivered.add(stack);
                     continue;
                 }
-                if (where.getWorld() == null) {
-                    undelivered.add(stack);
-                    continue;
-                }
-                if (plugin.settings().mergeGroundStacks) {
-                    where.getWorld().dropItem(where, stack);
-                } else {
-                    where.getWorld().dropItemNaturally(where, stack);
-                }
+                // Thrown along the player's line of sight, exactly like pressing Q.
+                ItemThrow.deliver(player, stack, plugin.settings());
                 job.spawnedEntities.incrementAndGet();
                 delivered += stack.getAmount();
             }
