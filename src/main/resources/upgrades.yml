@@ -1,0 +1,54 @@
+# ============================================================================
+#  HavocSpawners - upgrade ladder
+#
+#  Every spawner starts at level 1. Upgrading is paid for with the economy
+#  provider and applies instantly to that one spawner.
+#
+#  delay-multiplier   < 1.0 makes the spawner faster (0.8 = 20% faster)
+#  loot-multiplier    scales every generated drop
+#  bonus-pages        extra storage pages (1 page = 45 virtual slots)
+#  bonus-exp-capacity extra stored XP ceiling
+#  bonus-range        extra activation range in blocks
+# ============================================================================
+
+levels:
+  1:
+    name: "Stock"
+    cost: 0
+    delay-multiplier: 1.0
+    loot-multiplier: 1.0
+    bonus-pages: 0
+    bonus-exp-capacity: 0
+    bonus-range: 0
+  2:
+    name: "Tuned"
+    cost: 25000
+    delay-multiplier: 0.9
+    loot-multiplier: 1.1
+    bonus-pages: 1
+    bonus-exp-capacity: 2000
+    bonus-range: 2
+  3:
+    name: "Reinforced"
+    cost: 75000
+    delay-multiplier: 0.8
+    loot-multiplier: 1.25
+    bonus-pages: 3
+    bonus-exp-capacity: 6000
+    bonus-range: 4
+  4:
+    name: "Overdriven"
+    cost: 200000
+    delay-multiplier: 0.65
+    loot-multiplier: 1.5
+    bonus-pages: 6
+    bonus-exp-capacity: 15000
+    bonus-range: 6
+  5:
+    name: "Havoc"
+    cost: 500000
+    delay-multiplier: 0.5
+    loot-multiplier: 2.0
+    bonus-pages: 12
+    bonus-exp-capacity: 40000
+    bonus-range: 8

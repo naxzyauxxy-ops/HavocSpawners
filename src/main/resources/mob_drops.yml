@@ -1,0 +1,453 @@
+# ============================================================================
+#  HavocSpawners - mob spawner loot tables
+#
+#  <ENTITY_TYPE>:
+#    material: icon shown in dialogs
+#    experience: XP granted per simulated mob
+#    loot:
+#      <MATERIAL>:
+#        amount: "0-2"     (fixed value or range)
+#        chance: 100.0     (percent)
+#
+#  Each spawn cycle simulates between min-mobs and max-mobs mobs, scaled by the
+#  spawner's stack size, then rolls this table once per simulated mob.
+# ============================================================================
+
+ZOMBIE:
+  material: ZOMBIE_HEAD
+  experience: 5
+  loot:
+    ROTTEN_FLESH:
+      amount: 0-2
+      chance: 100.0
+    IRON_INGOT:
+      amount: 1
+      chance: 2.5
+    CARROT:
+      amount: 1
+      chance: 2.5
+    POTATO:
+      amount: 1
+      chance: 2.5
+
+HUSK:
+  material: SAND
+  experience: 5
+  loot:
+    ROTTEN_FLESH:
+      amount: 0-2
+      chance: 100.0
+    SAND:
+      amount: 0-1
+      chance: 10.0
+
+DROWNED:
+  material: TRIDENT
+  experience: 5
+  loot:
+    ROTTEN_FLESH:
+      amount: 0-2
+      chance: 100.0
+    COPPER_INGOT:
+      amount: 1
+      chance: 11.0
+    NAUTILUS_SHELL:
+      amount: 1
+      chance: 3.0
+    TRIDENT:
+      amount: 1
+      chance: 0.5
+
+SKELETON:
+  material: SKELETON_SKULL
+  experience: 5
+  loot:
+    BONE:
+      amount: 0-2
+      chance: 100.0
+    ARROW:
+      amount: 0-2
+      chance: 100.0
+
+STRAY:
+  material: SNOWBALL
+  experience: 5
+  loot:
+    BONE:
+      amount: 0-2
+      chance: 100.0
+    ARROW:
+      amount: 0-2
+      chance: 100.0
+    TIPPED_ARROW:
+      amount: 1
+      chance: 5.0
+
+WITHER_SKELETON:
+  material: WITHER_SKELETON_SKULL
+  experience: 5
+  loot:
+    BONE:
+      amount: 0-2
+      chance: 100.0
+    COAL:
+      amount: 0-1
+      chance: 33.0
+    WITHER_SKELETON_SKULL:
+      amount: 1
+      chance: 2.5
+
+SPIDER:
+  material: SPIDER_EYE
+  experience: 5
+  loot:
+    STRING:
+      amount: 0-2
+      chance: 100.0
+    SPIDER_EYE:
+      amount: 0-1
+      chance: 33.0
+
+CAVE_SPIDER:
+  material: COBWEB
+  experience: 5
+  loot:
+    STRING:
+      amount: 0-2
+      chance: 100.0
+    SPIDER_EYE:
+      amount: 0-1
+      chance: 33.0
+
+CREEPER:
+  material: CREEPER_HEAD
+  experience: 5
+  loot:
+    GUNPOWDER:
+      amount: 0-2
+      chance: 100.0
+
+ENDERMAN:
+  material: ENDER_PEARL
+  experience: 5
+  loot:
+    ENDER_PEARL:
+      amount: 0-1
+      chance: 50.0
+
+BLAZE:
+  material: BLAZE_ROD
+  experience: 10
+  loot:
+    BLAZE_ROD:
+      amount: 0-1
+      chance: 50.0
+
+WITCH:
+  material: GLASS_BOTTLE
+  experience: 5
+  loot:
+    GLASS_BOTTLE:
+      amount: 0-2
+      chance: 25.0
+    GLOWSTONE_DUST:
+      amount: 0-2
+      chance: 25.0
+    GUNPOWDER:
+      amount: 0-2
+      chance: 25.0
+    REDSTONE:
+      amount: 0-2
+      chance: 25.0
+    SPIDER_EYE:
+      amount: 0-2
+      chance: 25.0
+    STICK:
+      amount: 0-2
+      chance: 25.0
+    SUGAR:
+      amount: 0-2
+      chance: 25.0
+
+SLIME:
+  material: SLIME_BALL
+  experience: 4
+  loot:
+    SLIME_BALL:
+      amount: 0-2
+      chance: 100.0
+
+MAGMA_CUBE:
+  material: MAGMA_CREAM
+  experience: 4
+  loot:
+    MAGMA_CREAM:
+      amount: 0-1
+      chance: 50.0
+
+GUARDIAN:
+  material: PRISMARINE_SHARD
+  experience: 10
+  loot:
+    PRISMARINE_SHARD:
+      amount: 0-2
+      chance: 100.0
+    PRISMARINE_CRYSTALS:
+      amount: 0-1
+      chance: 40.0
+    COD:
+      amount: 1
+      chance: 25.0
+
+ELDER_GUARDIAN:
+  material: PRISMARINE_CRYSTALS
+  experience: 10
+  loot:
+    PRISMARINE_SHARD:
+      amount: 0-2
+      chance: 100.0
+    PRISMARINE_CRYSTALS:
+      amount: 0-1
+      chance: 40.0
+    WET_SPONGE:
+      amount: 1
+      chance: 100.0
+
+ZOMBIFIED_PIGLIN:
+  material: GOLD_NUGGET
+  experience: 5
+  loot:
+    ROTTEN_FLESH:
+      amount: 0-1
+      chance: 100.0
+    GOLD_NUGGET:
+      amount: 0-1
+      chance: 100.0
+    GOLD_INGOT:
+      amount: 1
+      chance: 2.5
+
+PIGLIN:
+  material: GOLDEN_SWORD
+  experience: 5
+  loot:
+    GOLD_NUGGET:
+      amount: 0-1
+      chance: 50.0
+
+HOGLIN:
+  material: PORKCHOP
+  experience: 5
+  loot:
+    PORKCHOP:
+      amount: 2-4
+      chance: 100.0
+    LEATHER:
+      amount: 0-1
+      chance: 50.0
+
+SILVERFISH:
+  material: STONE
+  experience: 5
+  loot:
+    COBBLESTONE:
+      amount: 0-1
+      chance: 15.0
+
+ENDERMITE:
+  material: END_STONE
+  experience: 3
+  loot:
+    END_STONE:
+      amount: 0-1
+      chance: 10.0
+
+PHANTOM:
+  material: PHANTOM_MEMBRANE
+  experience: 5
+  loot:
+    PHANTOM_MEMBRANE:
+      amount: 0-1
+      chance: 50.0
+
+SHULKER:
+  material: SHULKER_SHELL
+  experience: 5
+  loot:
+    SHULKER_SHELL:
+      amount: 0-1
+      chance: 50.0
+
+IRON_GOLEM:
+  material: IRON_BLOCK
+  experience: 0
+  loot:
+    IRON_INGOT:
+      amount: 3-5
+      chance: 100.0
+    POPPY:
+      amount: 0-2
+      chance: 100.0
+
+SNOW_GOLEM:
+  material: SNOWBALL
+  experience: 0
+  loot:
+    SNOWBALL:
+      amount: 0-15
+      chance: 100.0
+
+COW:
+  material: BEEF
+  experience: 3
+  loot:
+    BEEF:
+      amount: 1-3
+      chance: 100.0
+    LEATHER:
+      amount: 0-2
+      chance: 100.0
+
+MOOSHROOM:
+  material: RED_MUSHROOM
+  experience: 3
+  loot:
+    BEEF:
+      amount: 1-3
+      chance: 100.0
+    LEATHER:
+      amount: 0-2
+      chance: 100.0
+    RED_MUSHROOM:
+      amount: 0-2
+      chance: 50.0
+
+PIG:
+  material: PORKCHOP
+  experience: 3
+  loot:
+    PORKCHOP:
+      amount: 1-3
+      chance: 100.0
+
+SHEEP:
+  material: WHITE_WOOL
+  experience: 3
+  loot:
+    MUTTON:
+      amount: 1-2
+      chance: 100.0
+    WHITE_WOOL:
+      amount: 1
+      chance: 100.0
+
+CHICKEN:
+  material: CHICKEN
+  experience: 3
+  loot:
+    CHICKEN:
+      amount: 1
+      chance: 100.0
+    FEATHER:
+      amount: 0-2
+      chance: 100.0
+
+RABBIT:
+  material: RABBIT_FOOT
+  experience: 3
+  loot:
+    RABBIT:
+      amount: 0-1
+      chance: 100.0
+    RABBIT_HIDE:
+      amount: 0-1
+      chance: 100.0
+    RABBIT_FOOT:
+      amount: 1
+      chance: 10.0
+
+SQUID:
+  material: INK_SAC
+  experience: 3
+  loot:
+    INK_SAC:
+      amount: 1-3
+      chance: 100.0
+
+GLOW_SQUID:
+  material: GLOW_INK_SAC
+  experience: 3
+  loot:
+    GLOW_INK_SAC:
+      amount: 1-3
+      chance: 100.0
+
+BEE:
+  material: HONEYCOMB
+  experience: 0
+  loot:
+    HONEYCOMB:
+      amount: 0-1
+      chance: 20.0
+
+TURTLE:
+  material: TURTLE_SCUTE
+  experience: 3
+  loot:
+    SEAGRASS:
+      amount: 0-2
+      chance: 100.0
+
+STRIDER:
+  material: STRING
+  experience: 3
+  loot:
+    STRING:
+      amount: 2-5
+      chance: 100.0
+
+GHAST:
+  material: GHAST_TEAR
+  experience: 5
+  loot:
+    GHAST_TEAR:
+      amount: 0-1
+      chance: 50.0
+    GUNPOWDER:
+      amount: 0-2
+      chance: 100.0
+
+VINDICATOR:
+  material: IRON_AXE
+  experience: 5
+  loot:
+    EMERALD:
+      amount: 0-1
+      chance: 20.0
+
+PILLAGER:
+  material: CROSSBOW
+  experience: 5
+  loot:
+    ARROW:
+      amount: 0-2
+      chance: 50.0
+
+RAVAGER:
+  material: SADDLE
+  experience: 20
+  loot:
+    SADDLE:
+      amount: 1
+      chance: 100.0
+
+EVOKER:
+  material: TOTEM_OF_UNDYING
+  experience: 10
+  loot:
+    TOTEM_OF_UNDYING:
+      amount: 1
+      chance: 100.0
+    EMERALD:
+      amount: 0-1
+      chance: 50.0

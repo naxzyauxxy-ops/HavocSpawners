@@ -1,0 +1,182 @@
+# ============================================================================
+#  HavocSpawners
+#  Dialog-driven virtual spawners for Paper 1.21.6+
+#
+#  Time values accept: 20s, 5m, 1h, 1d, or a raw tick count.
+# ============================================================================
+
+config-version: 1
+
+# Message file inside plugins/HavocSpawners/lang/
+language: en_US
+debug: false
+
+# ----------------------------------------------------------------------------
+# Storage
+# ----------------------------------------------------------------------------
+storage:
+  # SQLITE or MYSQL. MySQL/MariaDB lets several servers share one spawner set.
+  mode: SQLITE
+  # Identifies this server inside a shared database.
+  server-name: server1
+
+  sqlite:
+    file: spawners.db
+
+  mysql:
+    host: localhost
+    port: 3306
+    database: havocspawners
+    username: root
+    password: ''
+    properties: "useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+
+  pool:
+    maximum-size: 10
+    minimum-idle: 2
+    connection-timeout: 10000
+    max-lifetime: 1800000
+    idle-timeout: 600000
+    keepalive-time: 30000
+
+  # Spawner writes are queued and flushed off the main thread in batches.
+  flush-interval-seconds: 10
+  flush-batch-size: 500
+
+# ----------------------------------------------------------------------------
+# Core spawner behaviour
+# ----------------------------------------------------------------------------
+spawner:
+  defaults:
+    min-mobs: 1
+    max-mobs: 4
+    activation-range: 16
+    delay: 25s
+    pages-per-stack: 1        # 1 page = 45 virtual slots
+    max-stored-exp: 1000
+    max-stack-size: 100000
+  allow-exp-mending: true
+  protect-from-explosions: true
+  # Only generate loot while a player is inside activation-range.
+  require-player-nearby: true
+  # Let a spawner catch up on time it spent unloaded (0s disables catch-up).
+  max-catchup: 0s
+  # Stop generating once storage is full instead of voiding loot.
+  stop-when-full: true
+
+breaking:
+  enabled: true
+  direct-to-inventory: true
+  # Storage contents are handed back when the spawner is broken.
+  drop-storage-on-break: true
+  required-tools:
+    - IRON_PICKAXE
+    - GOLDEN_PICKAXE
+    - DIAMOND_PICKAXE
+    - NETHERITE_PICKAXE
+  durability-loss: 1
+  silk-touch:
+    required: false
+    level: 1
+
+natural-spawners:
+  breakable: false
+  convert-on-break: true
+  spawn-mobs: true
+  protect-from-explosions: false
+
+# ----------------------------------------------------------------------------
+# Bulk drop - the "empty many pages at once without lag" knobs
+#
+# A bulk drop never materialises the whole storage. It converts virtual slots
+# into real stacks a few at a time and spreads the work across ticks, so a
+# 4-million-item spawner empties at the same TPS cost as a 40-item one.
+# ----------------------------------------------------------------------------
+bulk-drop:
+  stacks-per-tick: 24
+  # Hard ceiling on loose item entities this plugin will create per request.
+  max-item-entities: 600
+  # Fill the player's inventory first; only the overflow becomes ground items.
+  prefer-player-inventory: true
+  merge-ground-stacks: true
+  progress-actionbar: true
+  max-pages-per-request: 4096
+
+# ----------------------------------------------------------------------------
+# Economy
+# ----------------------------------------------------------------------------
+economy:
+  enabled: true
+  provider: VAULT
+  # SHOP_THEN_CUSTOM, CUSTOM_ONLY
+  price-source: SHOP_THEN_CUSTOM
+  default-price: 0.0
+  tax-percent: 0.0
+
+# ----------------------------------------------------------------------------
+# Automation (auto-sell / auto-collect)
+# ----------------------------------------------------------------------------
+automation:
+  enabled: true
+  interval-seconds: 30
+  auto-sell:
+    enabled: true
+    # Skip payouts below this value so economies are not spammed.
+    min-value: 1.0
+  auto-collect:
+    enabled: true
+    # How far a linked container may be from the spawner.
+    link-radius: 8
+    stacks-per-run: 32
+
+# ----------------------------------------------------------------------------
+# Upgrades (see upgrades.yml)
+# ----------------------------------------------------------------------------
+upgrades:
+  enabled: true
+  refund-percent: 0.0
+
+# ----------------------------------------------------------------------------
+# Networks
+# ----------------------------------------------------------------------------
+networks:
+  enabled: true
+  max-per-player: 5
+  max-spawners-per-network: 250
+
+# ----------------------------------------------------------------------------
+# Analytics
+# ----------------------------------------------------------------------------
+analytics:
+  enabled: true
+  history-hours: 24
+  leaderboard-size: 10
+
+hologram:
+  enabled: false
+  offset-y: 1.6
+  refresh-seconds: 5
+
+particles:
+  stack: true
+  activate: true
+  loot: true
+
+# ----------------------------------------------------------------------------
+# Import from SmartSpawner
+#   /hs import yaml            reads <folder>/spawners_data.yml
+#   /hs import sqlite          reads <folder>/spawners.db
+#   /hs import mysql           reads the credentials below
+# ----------------------------------------------------------------------------
+import:
+  smartspawner-folder: "plugins/SmartSpawner"
+  # Server name to read out of a shared SmartSpawner database.
+  source-server-name: server1
+  # Keep spawners that already exist in HavocSpawners (false = overwrite them).
+  skip-existing: true
+  mysql:
+    host: localhost
+    port: 3306
+    database: smartspawner
+    username: root
+    password: ''

@@ -1,0 +1,101 @@
+# ============================================================================
+#  HavocSpawners - sell prices
+#
+#  Used when economy.price-source is CUSTOM_ONLY, and as the fallback when
+#  SHOP_THEN_CUSTOM is set but the shop plugin has no price for an item.
+#  Items missing here fall back to economy.default-price (0.0 = unsellable).
+# ============================================================================
+
+prices:
+  # Animal & fish drops
+  LEATHER: 3.75
+  STRING: 0.025
+  FEATHER: 0.25
+  CHICKEN: 0.25
+  COOKED_CHICKEN: 0.375
+  COD: 0.25
+  COOKED_COD: 0.375
+  SALMON: 0.25
+  COOKED_SALMON: 0.375
+  BEEF: 0.3
+  COOKED_BEEF: 0.5
+  PORKCHOP: 0.025
+  COOKED_PORKCHOP: 0.375
+  MUTTON: 0.25
+  COOKED_MUTTON: 0.375
+  RABBIT: 0.3
+  COOKED_RABBIT: 0.75
+  WHITE_WOOL: 0.5
+  RABBIT_HIDE: 0.375
+  RABBIT_FOOT: 0.5
+  PUFFERFISH: 0.75
+  TROPICAL_FISH: 0.125
+  HONEYCOMB: 1.0
+
+  # Hostile mob drops
+  BONE: 0.125
+  BONE_MEAL: 0.05
+  BONE_BLOCK: 10.0
+  ARROW: 0.05
+  SPIDER_EYE: 0.05
+  GUNPOWDER: 0.125
+  ROTTEN_FLESH: 0.025
+  ENDER_PEARL: 0.25
+  GHAST_TEAR: 6.25
+  MAGMA_CREAM: 1.0
+  PHANTOM_MEMBRANE: 1.25
+  SHULKER_SHELL: 10.0
+  SHULKER_BOX: 22.5
+  SLIME_BALL: 0.25
+  BLAZE_ROD: 0.25
+  BREEZE_ROD: 0.75
+  WITHER_SKELETON_SKULL: 125.0
+  NAUTILUS_SHELL: 5.0
+
+  # Weapons & tools
+  BOW: 0.375
+  CROSSBOW: 0.5
+  GOLDEN_SWORD: 0.75
+  GOLDEN_AXE: 0.75
+  STONE_SWORD: 0.125
+  IRON_AXE: 0.625
+  TRIDENT: 187.5
+  TIPPED_ARROW: 0.125
+  TOTEM_OF_UNDYING: 37.5
+  SADDLE: 25.0
+
+  # Materials & resources
+  COPPER_INGOT: 0.5
+  PRISMARINE_SHARD: 0.375
+  PRISMARINE_CRYSTALS: 0.5
+  WET_SPONGE: 12.5
+  EMERALD: 1.25
+  IRON_INGOT: 0.75
+  GOLD_NUGGET: 0.025
+  GOLD_INGOT: 0.625
+  DIAMOND: 5.0
+  NETHERITE_INGOT: 120.0
+  REDSTONE: 1.25
+  GLOWSTONE_DUST: 0.125
+  COAL: 0.5
+  QUARTZ: 0.5
+  LAPIS_LAZULI: 0.5
+  AMETHYST_SHARD: 1.0
+  NETHER_STAR: 250.0
+
+  # Miscellaneous
+  GLOW_INK_SAC: 3.75
+  INK_SAC: 1.25
+  CARROT: 0.375
+  POTATO: 0.375
+  POPPY: 0.05
+  SNOWBALL: 0.0125
+  SEAGRASS: 0.025
+  SUGAR: 0.25
+  GLASS_BOTTLE: 0.25
+  STICK: 0.05
+  COBBLESTONE: 0.01
+  SAND: 0.01
+  END_STONE: 0.1
+  SUGAR_CANE: 0.1
+  BAMBOO: 0.05

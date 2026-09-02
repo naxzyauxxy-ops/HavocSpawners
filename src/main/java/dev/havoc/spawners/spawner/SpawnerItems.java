@@ -1,0 +1,156 @@
+package dev.havoc.spawners.spawner;
+
+import dev.havoc.spawners.HavocSpawners;
+import dev.havoc.spawners.config.Messages;
+import dev.havoc.spawners.util.Numbers;
+import dev.havoc.spawners.util.Text;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.block.CreatureSpawner;
+import org.bukkit.entity.EntityType;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/** Builds and reads the physical spawner item. */
+public final class SpawnerItems {
+
+    private final HavocSpawners plugin;
+    private final NamespacedKey keyType;
+    private final NamespacedKey keyItemMaterial;
+    private final NamespacedKey keyStack;
+    private final NamespacedKey keyLevel;
+
+    public SpawnerItems(HavocSpawners plugin) {
+        this.plugin = plugin;
+        this.keyType = new NamespacedKey(plugin, "spawner_type");
+        this.keyItemMaterial = new NamespacedKey(plugin, "item_material");
+        this.keyStack = new NamespacedKey(plugin, "stack_size");
+        this.keyLevel = new NamespacedKey(plugin, "level");
+    }
+
+    public ItemStack create(EntityType entityType, Material itemMaterial, int stackSize, int level, int amount) {
+        ItemStack item = new ItemStack(Material.SPAWNER, Math.max(1, amount));
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return item;
+        }
+        if (meta instanceof BlockStateMeta blockStateMeta && entityType != null) {
+            try {
+                if (blockStateMeta.getBlockState() instanceof CreatureSpawner spawnerState) {
+                    spawnerState.setSpawnedType(entityType);
+                    blockStateMeta.setBlockState(spawnerState);
+                }
+            } catch (Throwable ignored) {
+                // Some entity types cannot be placed in a vanilla spawner; the PDC still carries the type.
+            }
+        }
+
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        if (itemMaterial != null) {
+            pdc.set(keyType, PersistentDataType.STRING, "ITEM");
+            pdc.set(keyItemMaterial, PersistentDataType.STRING, itemMaterial.name());
+        } else {
+            pdc.set(keyType, PersistentDataType.STRING,
+                    entityType == null ? EntityType.PIG.name() : entityType.name());
+        }
+        pdc.set(keyStack, PersistentDataType.INTEGER, Math.max(1, stackSize));
+        pdc.set(keyLevel, PersistentDataType.INTEGER, Math.max(1, level));
+
+        String typeName = pretty(itemMaterial != null ? itemMaterial.name()
+                : (entityType == null ? "PIG" : entityType.name()));
+        meta.displayName(Text.mm(plugin.messages().raw("item.spawner-name"),
+                Messages.of("type", typeName, "stack", Numbers.plain(stackSize), "level", String.valueOf(level))));
+
+        List<Component> lore = new ArrayList<>();
+        for (String line : plugin.messages().raw("item.spawner-lore").split("\\n")) {
+            lore.add(Text.mm(line, Messages.of(
+                    "type", typeName,
+                    "stack", Numbers.plain(stackSize),
+                    "level", String.valueOf(level))));
+        }
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    public boolean isHavocSpawner(ItemStack item) {
+        if (item == null || item.getType() != Material.SPAWNER) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        return meta != null && meta.getPersistentDataContainer().has(keyType, PersistentDataType.STRING);
+    }
+
+    public EntityType readEntityType(ItemStack item) {
+        String raw = readString(item, keyType);
+        if (raw == null || raw.equals("ITEM")) {
+            return null;
+        }
+        try {
+            return EntityType.valueOf(raw.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    public Material readItemMaterial(ItemStack item) {
+        String raw = readString(item, keyType);
+        if (raw == null || !raw.equals("ITEM")) {
+            return null;
+        }
+        String material = readString(item, keyItemMaterial);
+        return material == null ? null : Material.matchMaterial(material.toUpperCase(Locale.ROOT));
+    }
+
+    public int readStackSize(ItemStack item) {
+        Integer value = readInt(item, keyStack);
+        return value == null ? 1 : Math.max(1, value);
+    }
+
+    public int readLevel(ItemStack item) {
+        Integer value = readInt(item, keyLevel);
+        return value == null ? 1 : Math.max(1, value);
+    }
+
+    private String readString(ItemStack item, NamespacedKey key) {
+        if (item == null) {
+            return null;
+        }
+        ItemMeta meta = item.getItemMeta();
+        return meta == null ? null : meta.getPersistentDataContainer().get(key, PersistentDataType.STRING);
+    }
+
+    private Integer readInt(ItemStack item, NamespacedKey key) {
+        if (item == null) {
+            return null;
+        }
+        ItemMeta meta = item.getItemMeta();
+        return meta == null ? null : meta.getPersistentDataContainer().get(key, PersistentDataType.INTEGER);
+    }
+
+    public static String pretty(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "Unknown";
+        }
+        String[] words = raw.toLowerCase(Locale.ROOT).split("_");
+        StringBuilder builder = new StringBuilder();
+        for (String word : words) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (!builder.isEmpty()) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return builder.toString();
+    }
+}

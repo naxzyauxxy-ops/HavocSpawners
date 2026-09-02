@@ -1,0 +1,137 @@
+# ============================================================================
+#  HavocSpawners - chat messages (MiniMessage format)
+#  https://docs.advntr.dev/minimessage/format.html
+#
+#  Placeholders are written as <name> and are listed above each message.
+# ============================================================================
+
+prefix: "<gradient:#b14dff:#6c1fd4><bold>Havoc</bold></gradient> <dark_gray>»</dark_gray> "
+
+no-permission: "<color:#ff5d6c>You do not have permission to do that.</color>"
+players-only: "<color:#ff5d6c>Only players can run that.</color>"
+player-not-found: "<color:#ff5d6c>No online player called <white><player></white>.</color>"
+inventory-full: "<color:#ffb454>Your inventory is full.</color>"
+reloaded: "<color:#5bd66f>Configuration reloaded.</color>"
+
+# ---------------------------------------------------------------- storage
+storage:
+  empty: "<color:#ffb454>There is nothing to take.</color>"
+  # <amount> <item>
+  withdrew: "<color:#5bd66f>Took <white><amount></white> <white><item></white>.</color>"
+
+# ---------------------------------------------------------------- economy
+economy:
+  unavailable: "<color:#ff5d6c>Selling is unavailable - no economy plugin is hooked.</color>"
+
+sell:
+  nothing: "<color:#ffb454>Nothing in there has a sell price.</color>"
+  # <items> <money>
+  success: "<color:#5bd66f>Sold <white><items></white> items for <white><money></white>.</color>"
+
+exp:
+  empty: "<color:#ffb454>No experience stored yet.</color>"
+  # <exp>
+  claimed: "<color:#5bd66f>Claimed <white><exp></white> experience.</color>"
+
+# ---------------------------------------------------------------- stacking
+stack:
+  cannot-add: "<color:#ffb454>Nothing to add - either you have no matching spawners or it is already full.</color>"
+  cannot-remove: "<color:#ffb454>A spawner must keep at least one stack.</color>"
+  wrong-type: "<color:#ff5d6c>That spawner is a different type.</color>"
+  full: "<color:#ffb454>This spawner is at its stack limit.</color>"
+  # <amount> <total>
+  added: "<color:#5bd66f>Added <white><amount></white> · now stacked <white><total></white>.</color>"
+  removed: "<color:#5bd66f>Removed <white><amount></white> · now stacked <white><total></white>.</color>"
+
+# ---------------------------------------------------------------- upgrades
+upgrade:
+  # <cost>
+  too-poor: "<color:#ff5d6c>You need <white><cost></white> for that upgrade.</color>"
+  # <tier> <level>
+  success: "<color:#5bd66f>Upgraded to <white><tier></white> (level <white><level></white>).</color>"
+
+# ---------------------------------------------------------------- automation
+automation:
+  link-first: "<color:#ffb454>Link a container before enabling auto-collect.</color>"
+  link-mode: "<color:#b14dff>Right-click a chest, barrel or hopper to link it.</color>"
+  link-not-container: "<color:#ff5d6c>That block cannot hold items.</color>"
+  # <radius>
+  link-too-far: "<color:#ff5d6c>The container must be within <white><radius></white> blocks of the spawner.</color>"
+  # <location>
+  linked: "<color:#5bd66f>Linked to <white><location></white> - auto-collect is on.</color>"
+
+# ---------------------------------------------------------------- networks
+network:
+  create-failed: "<color:#ff5d6c>Could not create that network - check the name and your network limit.</color>"
+  # <name>
+  created: "<color:#5bd66f>Created network <white><name></white>.</color>"
+  assign-failed: "<color:#ff5d6c>Could not assign this spawner to that network.</color>"
+  assigned: "<color:#5bd66f>Assigned to <white><name></white>.</color>"
+  deleted: "<color:#ffb454>Deleted network <white><name></white>.</color>"
+  # <count>
+  drain-started: "<color:#b14dff>Draining <white><count></white> spawners - items arrive as they are converted.</color>"
+  autosell-on: "<color:#5bd66f>Auto-sell enabled for the whole network.</color>"
+  autosell-off: "<color:#ffb454>Auto-sell disabled for the whole network.</color>"
+
+# ---------------------------------------------------------------- bulk drop
+bulk-drop:
+  # <items> <pages>  (action bar, no prefix)
+  progress: "<color:#b14dff>⇩</color> <white><items></white> <color:#7d7a89>items · <pages> pages left</color>"
+  # <items> <seconds>
+  done: "<color:#5bd66f>Withdrew <white><items></white> items in <white><seconds></white>.</color>"
+  busy: "<color:#ffb454>A withdrawal is already running on that spawner.</color>"
+  nothing: "<color:#ffb454>There is nothing to withdraw.</color>"
+  # <pages>
+  started: "<color:#b14dff>Withdrawing <white><pages></white> pages...</color>"
+
+# ---------------------------------------------------------------- spawners
+spawner:
+  # <type> <stack>
+  placed: "<color:#5bd66f>Placed a <white><type></white> spawner <color:#7d7a89>(×<stack>)</color>.</color>"
+  # <type> <stack> <items>
+  broken: "<color:#ffb454>Broke a <white><type></white> spawner <color:#7d7a89>(×<stack>, <items> items returned)</color>.</color>"
+  break-disabled: "<color:#ff5d6c>Breaking spawners is disabled.</color>"
+  wrong-tool: "<color:#ff5d6c>You need a stronger pickaxe for that.</color>"
+  needs-silk: "<color:#ff5d6c>You need Silk Touch to collect this spawner.</color>"
+  busy: "<color:#ffb454>Wait for the running withdrawal to finish first.</color>"
+  natural-protected: "<color:#ff5d6c>Natural spawners cannot be broken here.</color>"
+  # <type>
+  type-changed: "<color:#5bd66f>Spawner type changed to <white><type></white>.</color>"
+  bad-egg: "<color:#ff5d6c>That egg is not a valid spawner type.</color>"
+  empty-first: "<color:#ffb454>Empty the storage before changing the spawner type.</color>"
+
+# ---------------------------------------------------------------- commands
+list:
+  world-missing: "<color:#ff5d6c>That spawner's world is not loaded.</color>"
+  teleported: "<color:#5bd66f>Teleported.</color>"
+
+near:
+  # <count> <radius>
+  header: "<color:#b14dff>Found <white><count></white> spawners within <white><radius></white> blocks:</color>"
+
+info:
+  none: "<color:#ffb454>Look at a Havoc spawner within 8 blocks.</color>"
+
+give:
+  usage: "<color:#ffb454>/hs give [player] (mob|item) [TYPE] [amount] [stack] [level]</color>"
+  # <player> <type> <amount>
+  success: "<color:#5bd66f>Gave <white><amount></white>× <white><type></white> spawner to <white><player></white>.</color>"
+  bad-type: "<color:#ff5d6c>Unknown entity type: <white><value></white>.</color>"
+  bad-material: "<color:#ff5d6c>Unknown material: <white><value></white>.</color>"
+
+import:
+  usage: "<color:#ffb454>/hs import (yaml | sqlite | mysql)</color>"
+  # <mode>
+  started: "<color:#b14dff>Importing SmartSpawner data (<white><mode></white>)...</color>"
+  # <imported> <skipped> <failed> <items>
+  done: "<color:#5bd66f>Import finished: <white><imported></white> imported, <white><skipped></white> skipped, <white><failed></white> failed, <white><items></white> items moved.</color>"
+
+clearghosts:
+  # <count>
+  done: "<color:#5bd66f>Removed <white><count></white> ghost spawners.</color>"
+
+# ---------------------------------------------------------------- items
+item:
+  # <type> <stack> <level>
+  spawner-name: "<gradient:#b14dff:#6c1fd4><bold><type> Spawner</bold></gradient>"
+  spawner-lore: "<color:#7d7a89>Stacked</color> <color:#c9c4d6>×<stack></color>\n<color:#7d7a89>Tier</color> <color:#c9c4d6><level></color>\n<color:#5b5866><italic>Place it, then right-click to open.</italic></color>"

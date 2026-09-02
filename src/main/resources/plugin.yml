@@ -1,0 +1,75 @@
+name: HavocSpawners
+version: '${version}'
+main: dev.havoc.spawners.HavocSpawners
+description: '${description}'
+api-version: '1.21'
+authors: [ Havoc ]
+folia-supported: true
+load: POSTWORLD
+prefix: HavocSpawners
+
+softdepend:
+  - Vault
+  - PlaceholderAPI
+  - WorldGuard
+  - GriefPrevention
+  - Lands
+  - Towny
+  - Residence
+  - PlotSquared
+  - SuperiorSkyblock2
+  - BentoBox
+  - IridiumSkyblock
+  - HuskClaims
+
+commands:
+  havocspawners:
+    description: Main command for HavocSpawners
+    usage: /havocspawners help
+    aliases: [ hs, hspawners, havoc ]
+    permission: havocspawners.command.use
+    permission-message: "You do not have permission to use HavocSpawners commands."
+
+permissions:
+  havocspawners.command.use:
+    description: Access to the /havocspawners command
+    default: true
+  havocspawners.command.reload:
+    default: op
+  havocspawners.command.give:
+    default: op
+  havocspawners.command.list:
+    default: op
+  havocspawners.command.import:
+    default: op
+  havocspawners.command.near:
+    default: op
+  havocspawners.command.top:
+    default: true
+  havocspawners.command.network:
+    default: true
+  havocspawners.admin:
+    description: Bypass protections and edit any spawner
+    default: op
+  havocspawners.use:
+    description: Open the spawner dialog
+    default: true
+  havocspawners.stack:
+    default: true
+  havocspawners.break:
+    default: true
+  havocspawners.changetype:
+    default: op
+  havocspawners.sell:
+    default: true
+  havocspawners.upgrade:
+    default: true
+  havocspawners.automation:
+    description: Use auto-sell and auto-collect
+    default: true
+  havocspawners.network:
+    description: Create and manage spawner networks
+    default: true
+  havocspawners.bulkdrop:
+    description: Drop many storage pages at once
+    default: true
