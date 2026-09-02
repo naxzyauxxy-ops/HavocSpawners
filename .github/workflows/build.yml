@@ -1,0 +1,75 @@
+name: Build HavocSpawners
+
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "v*" ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub release with the built jar"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compile & package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # No gradle wrapper is committed on purpose - this pins the Gradle version here
+      # so the repository stays small and reproducible.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Show environment
+        run: |
+          java -version
+          gradle --version
+
+      - name: Build shaded jar
+        run: gradle --no-daemon --stacktrace clean build
+
+      - name: Collect artifact info
+        id: jar
+        run: |
+          JAR=$(ls build/libs/HavocSpawners-*.jar | head -n 1)
+          echo "path=$JAR" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$JAR")" >> "$GITHUB_OUTPUT"
+          echo "### Built \`$(basename "$JAR")\` ($(du -h "$JAR" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HavocSpawners
+          path: build/libs/HavocSpawners-*.jar
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/libs/HavocSpawners-*.jar
+          generate_release_notes: true
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
