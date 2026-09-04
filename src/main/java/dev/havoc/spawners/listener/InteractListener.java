@@ -7,8 +7,6 @@ import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.util.Numbers;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
-import org.bukkit.block.Container;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -41,10 +39,6 @@ public final class InteractListener implements Listener {
         }
         Player player = event.getPlayer();
 
-        if (plugin.pendingLink(player) != null) {
-            handleLink(event, player, block);
-            return;
-        }
         if (block.getType() != Material.SPAWNER) {
             return;
         }
@@ -70,39 +64,6 @@ public final class InteractListener implements Listener {
         }
         event.setCancelled(true);
         plugin.spawnerUi().openMain(player, spawner);
-    }
-
-    private void handleLink(PlayerInteractEvent event, Player player, Block block) {
-        SpawnerData spawner = plugin.pendingLink(player);
-        plugin.clearLinking(player);
-        BlockState state = block.getState(false);
-        if (!(state instanceof Container)) {
-            plugin.messages().send(player, "automation.link-not-container");
-            return;
-        }
-        if (spawner == null) {
-            return;
-        }
-        BlockKey target = BlockKey.of(block);
-        if (!target.world().equals(spawner.position().world())
-                || distance(target, spawner.position()) > plugin.settings().autoCollectRadius) {
-            plugin.messages().send(player, "automation.link-too-far", Messages.of(
-                    "radius", String.valueOf(plugin.settings().autoCollectRadius)));
-            return;
-        }
-        event.setCancelled(true);
-        spawner.linkedContainer(target);
-        spawner.autoCollect(true);
-        plugin.storage().queueSave(spawner);
-        plugin.messages().send(player, "automation.linked", Messages.of("location", target.toString()));
-        plugin.spawnerUi().openAutomation(player, spawner);
-    }
-
-    private static double distance(BlockKey a, BlockKey b) {
-        double dx = a.x() - b.x();
-        double dy = a.y() - b.y();
-        double dz = a.z() - b.z();
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private void stackFromHand(Player player, SpawnerData spawner, ItemStack hand) {

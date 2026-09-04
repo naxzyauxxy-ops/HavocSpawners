@@ -56,13 +56,7 @@ upgrade:
 
 # ---------------------------------------------------------------- automation
 automation:
-  link-first: "<color:#ff8a95>Link a container before enabling auto-collect.</color>"
-  link-mode: "<color:#ff2b3d>Right-click a chest, barrel or hopper to link it.</color>"
-  link-not-container: "<color:#ff2b3d>That block cannot hold items.</color>"
-  # <radius>
-  link-too-far: "<color:#ff2b3d>The container must be within <white><radius></white> blocks of the spawner.</color>"
-  # <location>
-  linked: "<color:#ffffff>Linked to <color:#ff2b3d><location></color> - auto-collect is on.</color>"
+  needs-hopper: "<color:#ff8a95>Place a <color:#ff2b3d>hopper</color> directly under the spawner first.</color>"
 
 # ---------------------------------------------------------------- networks
 network:
@@ -92,8 +86,12 @@ bulk-drop:
 spawner:
   # <type> <stack>
   placed: "<color:#ffffff>Placed a <color:#ff2b3d><type></color> spawner <color:#9b9ba1>(×<stack>)</color>.</color>"
+  # <type> <stack> <items>  - the item was carrying storage
+  placed-restored: "<color:#ffffff>Placed a <color:#ff2b3d><type></color> spawner <color:#9b9ba1>(×<stack>)</color> with <color:#ff2b3d><items></color> items restored.</color>"
   # <type> <stack> <items>
-  broken: "<color:#ff8a95>Broke a <white><type></white> spawner <color:#9b9ba1>(×<stack>, <items> items returned)</color>.</color>"
+  broken: "<color:#ff8a95>Broke a <white><type></white> spawner <color:#9b9ba1>(×<stack>)</color>.</color>"
+  # <type> <stack> <items>  - contents travelled inside the item, nothing was dropped
+  broken-carried: "<color:#ff8a95>Broke a <white><type></white> spawner <color:#9b9ba1>(×<stack>)</color> - <color:#ffffff><items></color> items are stored inside it.</color>"
   break-disabled: "<color:#ff2b3d>Breaking spawners is disabled.</color>"
   wrong-tool: "<color:#ff2b3d>You need a stronger pickaxe for that.</color>"
   needs-silk: "<color:#ff2b3d>You need Silk Touch to collect this spawner.</color>"
@@ -143,4 +141,6 @@ clearghosts:
 item:
   # <type> <stack> <level>
   spawner-name: "<gradient:#ff2b3d:#ffffff><bold><type> Spawner</bold></gradient>"
+  # <items> <exp>  - extra lore lines shown only when the item is carrying storage
+  spawner-contents: "<color:#9b9ba1>Holding</color> <color:#ff2b3d><items></color> <color:#9b9ba1>items</color>\n<color:#6e6e74><italic>Place it to get them back.</italic></color>"
   spawner-lore: "<color:#9b9ba1>Stacked</color> <color:#ffffff>×<stack></color>\n<color:#9b9ba1>Tier</color> <color:#ff2b3d><level></color>\n<color:#6e6e74><italic>Place it, then right-click to open.</italic></color>"

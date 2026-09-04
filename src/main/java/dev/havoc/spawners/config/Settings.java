@@ -17,6 +17,9 @@ public final class Settings {
 
     public enum PriceSource {SHOP_THEN_CUSTOM, CUSTOM_ONLY}
 
+    /** What happens to stored items when a spawner is broken. */
+    public enum BreakStorage {KEEP_IN_ITEM, VOID, DROP}
+
     public String language = "en_US";
     public boolean debug;
 
@@ -75,7 +78,7 @@ public final class Settings {
     // breaking
     public boolean breakEnabled = true;
     public boolean directToInventory = true;
-    public boolean dropStorageOnBreak = true;
+    public BreakStorage breakStorage = BreakStorage.KEEP_IN_ITEM;
     public Set<Material> requiredTools = EnumSet.noneOf(Material.class);
     public int durabilityLoss = 1;
     public boolean silkRequired;
@@ -109,7 +112,6 @@ public final class Settings {
     public boolean autoSellEnabled = true;
     public double autoSellMinValue = 1.0D;
     public boolean autoCollectEnabled = true;
-    public int autoCollectRadius = 8;
     public int autoCollectStacks = 32;
 
     // upgrades
@@ -201,7 +203,8 @@ public final class Settings {
 
         s.breakEnabled = c.getBoolean("breaking.enabled", true);
         s.directToInventory = c.getBoolean("breaking.direct-to-inventory", true);
-        s.dropStorageOnBreak = c.getBoolean("breaking.drop-storage-on-break", true);
+        s.breakStorage = enumOf(BreakStorage.class, c.getString("breaking.storage-on-break"),
+                BreakStorage.KEEP_IN_ITEM);
         s.requiredTools = EnumSet.noneOf(Material.class);
         for (String raw : c.getStringList("breaking.required-tools")) {
             Material material = Material.matchMaterial(raw.trim().toUpperCase(Locale.ROOT));
@@ -238,7 +241,6 @@ public final class Settings {
         s.autoSellEnabled = c.getBoolean("automation.auto-sell.enabled", true);
         s.autoSellMinValue = c.getDouble("automation.auto-sell.min-value", 1.0D);
         s.autoCollectEnabled = c.getBoolean("automation.auto-collect.enabled", true);
-        s.autoCollectRadius = Numbers.clamp(c.getInt("automation.auto-collect.link-radius", 8), 1, 64);
         s.autoCollectStacks = Numbers.clamp(c.getInt("automation.auto-collect.stacks-per-run", 32), 1, 512);
 
         s.upgradesEnabled = c.getBoolean("upgrades.enabled", true);

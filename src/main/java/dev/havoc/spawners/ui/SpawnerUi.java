@@ -754,9 +754,12 @@ public final class SpawnerUi {
                 ? "<color:" + Ui.GOOD + ">on</color>" : "<color:" + Ui.FAINT + ">off</color>"));
         body.add(Ui.stat("Auto-collect", spawner.autoCollect()
                 ? "<color:" + Ui.GOOD + ">on</color>" : "<color:" + Ui.FAINT + ">off</color>"));
-        body.add(Ui.stat("Linked container", spawner.linkedContainer() == null
-                ? "<color:" + Ui.FAINT + ">none</color>"
-                : "<color:" + Ui.INK + ">" + spawner.linkedContainer() + "</color>"));
+        boolean hopper = dev.havoc.spawners.feature.AutomationService.hasHopper(spawner);
+        body.add(Ui.stat("Hopper below", hopper
+                ? "<color:" + Ui.GOOD + ">found</color>"
+                : "<color:" + Ui.BAD + ">missing</color>"));
+        body.add(Ui.text("<color:" + Ui.FAINT + ">Auto-collect feeds a hopper placed directly under"
+                + " the spawner. Nothing else works, and there is nothing to link.</color>"));
         body.add(Ui.stat("Earned so far", plugin.economy().format(spawner.earnedMoney())));
 
         List<ActionButton> buttons = new ArrayList<>();
@@ -771,30 +774,16 @@ public final class SpawnerUi {
         buttons.add(Ui.button(spawner.autoCollect()
                         ? "<color:" + Ui.BAD + ">Disable auto-collect</color>"
                         : "<color:" + Ui.GOOD + ">Enable auto-collect</color>",
-                "Pushes drops into the linked container", 170, p -> {
-                    if (!spawner.autoCollect() && spawner.linkedContainer() == null) {
-                        plugin.messages().send(p, "automation.link-first");
+                "Pushes drops into the hopper under this spawner", 170, p -> {
+                    if (!spawner.autoCollect()
+                            && !dev.havoc.spawners.feature.AutomationService.hasHopper(spawner)) {
+                        plugin.messages().send(p, "automation.needs-hopper");
                         return;
                     }
                     spawner.autoCollect(!spawner.autoCollect());
                     plugin.storage().queueSave(spawner);
                     openAutomation(p, spawner);
                 }));
-        buttons.add(Ui.button("<color:" + Ui.ACCENT + ">⛓ Link a container</color>",
-                "Then right-click a chest within " + plugin.settings().autoCollectRadius + " blocks", 170,
-                p -> {
-                    plugin.beginLinking(p, spawner);
-                    p.closeDialog();
-                    plugin.messages().send(p, "automation.link-mode");
-                }));
-        if (spawner.linkedContainer() != null) {
-            buttons.add(Ui.button("<color:" + Ui.WARN + ">Unlink container</color>", null, 170, p -> {
-                spawner.linkedContainer(null);
-                spawner.autoCollect(false);
-                plugin.storage().queueSave(spawner);
-                openAutomation(p, spawner);
-            }));
-        }
 
         DialogBase base = Ui.base("Automation", body, List.of(), true);
         player.showDialog(Ui.multi(base, buttons, backButton(spawner), 1));

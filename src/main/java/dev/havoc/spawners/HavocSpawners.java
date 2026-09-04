@@ -74,7 +74,6 @@ public final class HavocSpawners extends JavaPlugin {
     private BedrockUi bedrockUi;
     private SmartSpawnerImporter importer;
 
-    private final Map<UUID, String> pendingLinks = new ConcurrentHashMap<>();
     private ScheduledTask flushTask;
 
     @Override
@@ -213,21 +212,6 @@ public final class HavocSpawners extends JavaPlugin {
         this.spawners.startTicking();
         this.automation.start();
         startFlushTask();
-    }
-
-    // ------------------------------------------------------------------ linking
-
-    public void beginLinking(Player player, SpawnerData spawner) {
-        pendingLinks.put(player.getUniqueId(), spawner.id());
-    }
-
-    public SpawnerData pendingLink(Player player) {
-        String id = pendingLinks.get(player.getUniqueId());
-        return id == null ? null : spawners.byId(id);
-    }
-
-    public void clearLinking(Player player) {
-        pendingLinks.remove(player.getUniqueId());
     }
 
     // ------------------------------------------------------------------ accessors

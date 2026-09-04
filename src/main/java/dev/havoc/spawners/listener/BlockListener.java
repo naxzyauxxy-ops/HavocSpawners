@@ -2,8 +2,11 @@ package dev.havoc.spawners.listener;
 
 import dev.havoc.spawners.HavocSpawners;
 import dev.havoc.spawners.config.Messages;
+import dev.havoc.spawners.config.Settings;
 import dev.havoc.spawners.spawner.BlockKey;
+import dev.havoc.spawners.spawner.ItemSig;
 import dev.havoc.spawners.spawner.SpawnerData;
+import dev.havoc.spawners.storage.InventoryCodec;
 import dev.havoc.spawners.util.ItemThrow;
 import dev.havoc.spawners.util.Numbers;
 import org.bukkit.Material;
@@ -68,9 +71,24 @@ public final class BlockListener implements Listener {
                 plugin.items().readEntityType(item), plugin.items().readItemMaterial(item), player, stackSize);
         spawner.level(level);
         spawner.recompute(plugin.settings(), plugin.upgrades());
+
+        // Contents the item was carrying come straight back, bypassing the capacity check so a
+        // downgraded config can never delete what a player already had.
+        long restored = 0L;
+        for (Map.Entry<ItemSig, Long> entry : plugin.items().readStorage(item).entrySet()) {
+            spawner.storage().addUnchecked(entry.getKey(), entry.getValue());
+            restored += entry.getValue();
+        }
+        long carriedExp = plugin.items().readStoredExp(item);
+        if (carriedExp > 0L) {
+            spawner.storedExp(carriedExp);
+        }
         plugin.storage().queueSave(spawner);
-        plugin.messages().send(player, "spawner.placed", Messages.of(
-                "type", spawner.displayType(), "stack", Numbers.plain(stackSize)));
+
+        plugin.messages().send(player, restored > 0L ? "spawner.placed-restored" : "spawner.placed",
+                Messages.of("type", spawner.displayType(),
+                        "stack", Numbers.plain(stackSize),
+                        "items", Numbers.plain(restored)));
     }
 
     private EntityType readBlockType(Block block) {
@@ -129,20 +147,29 @@ public final class BlockListener implements Listener {
         event.setExpToDrop(0);
         damageTool(player, tool);
 
+        long items = spawner.storage().totalItems();
+        long storedExp = spawner.storedExp();
+        Settings.BreakStorage mode = plugin.settings().breakStorage;
+
+        // KEEP_IN_ITEM is the default because it is the only option that is both instant and
+        // lossless: the counters ride along inside the spawner item instead of becoming thousands
+        // of dropped entities.
+        String payload = null;
+        if (mode == Settings.BreakStorage.KEEP_IN_ITEM && items > 0) {
+            payload = InventoryCodec.encode(spawner.storage().snapshot());
+        }
+
         ItemStack give = plugin.items().create(spawner.entityType(), spawner.itemMaterial(),
-                spawner.stackSize(), spawner.level(), 1);
+                spawner.stackSize(), spawner.level(), 1, payload, 0L);
         deliver(player, List.of(give));
 
-        long storedExp = spawner.storedExp();
         if (storedExp > 0) {
             player.giveExp((int) Math.min(Integer.MAX_VALUE, storedExp), plugin.settings().allowExpMending);
         }
-        long items = spawner.storage().totalItems();
+
         boolean handingOff = false;
-        if (plugin.settings().dropStorageOnBreak && items > 0) {
-            // Hand the contents back through the metered service instead of one enormous dump.
-            // The data row only disappears once that handover finishes, so nothing is lost and no
-            // save can resurrect a deleted spawner.
+        if (mode == Settings.BreakStorage.DROP && items > 0) {
+            // Legacy behaviour. Still metered, but this is the setting that costs TPS.
             spawner.stopped(true);
             plugin.spawners().detachPosition(spawner);
             handingOff = plugin.dropService().dropAllThen(player, spawner, () -> {
@@ -154,7 +181,9 @@ public final class BlockListener implements Listener {
             plugin.spawners().remove(spawner);
             plugin.analytics().forget(spawner.id());
         }
-        plugin.messages().send(player, "spawner.broken", Messages.of(
+
+        String key = payload != null ? "spawner.broken-carried" : "spawner.broken";
+        plugin.messages().send(player, key, Messages.of(
                 "type", spawner.displayType(),
                 "stack", Numbers.plain(spawner.stackSize()),
                 "items", Numbers.plain(items)));

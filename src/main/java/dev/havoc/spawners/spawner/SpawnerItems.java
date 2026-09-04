@@ -27,6 +27,8 @@ public final class SpawnerItems {
     private final NamespacedKey keyItemMaterial;
     private final NamespacedKey keyStack;
     private final NamespacedKey keyLevel;
+    private final NamespacedKey keyStorage;
+    private final NamespacedKey keyStoredExp;
 
     public SpawnerItems(HavocSpawners plugin) {
         this.plugin = plugin;
@@ -34,9 +36,23 @@ public final class SpawnerItems {
         this.keyItemMaterial = new NamespacedKey(plugin, "item_material");
         this.keyStack = new NamespacedKey(plugin, "stack_size");
         this.keyLevel = new NamespacedKey(plugin, "level");
+        this.keyStorage = new NamespacedKey(plugin, "storage");
+        this.keyStoredExp = new NamespacedKey(plugin, "stored_exp");
     }
 
     public ItemStack create(EntityType entityType, Material itemMaterial, int stackSize, int level, int amount) {
+        return create(entityType, itemMaterial, stackSize, level, amount, null, 0L);
+    }
+
+    /**
+     * Builds a spawner item, optionally carrying a whole virtual storage inside it.
+     * <p>
+     * Carrying the contents on the item is what lets a spawner holding millions of items be broken
+     * without dropping a single entity: the counters ride along in the item's persistent data and are
+     * restored when it is placed again.
+     */
+    public ItemStack create(EntityType entityType, Material itemMaterial, int stackSize, int level,
+                            int amount, String storagePayload, long storedExp) {
         ItemStack item = new ItemStack(Material.SPAWNER, Math.max(1, amount));
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
@@ -63,6 +79,12 @@ public final class SpawnerItems {
         }
         pdc.set(keyStack, PersistentDataType.INTEGER, Math.max(1, stackSize));
         pdc.set(keyLevel, PersistentDataType.INTEGER, Math.max(1, level));
+        if (storagePayload != null && !storagePayload.isBlank()) {
+            pdc.set(keyStorage, PersistentDataType.STRING, storagePayload);
+        }
+        if (storedExp > 0L) {
+            pdc.set(keyStoredExp, PersistentDataType.LONG, storedExp);
+        }
 
         String typeName = pretty(itemMaterial != null ? itemMaterial.name()
                 : (entityType == null ? "PIG" : entityType.name()));
@@ -75,6 +97,14 @@ public final class SpawnerItems {
                     "type", typeName,
                     "stack", Numbers.plain(stackSize),
                     "level", String.valueOf(level))));
+        }
+        long carried = countOf(storagePayload);
+        if (carried > 0L || storedExp > 0L) {
+            for (String line : plugin.messages().raw("item.spawner-contents").split("\\n")) {
+                lore.add(Text.mm(line, Messages.of(
+                        "items", Numbers.plain(carried),
+                        "exp", Numbers.plain(storedExp))));
+            }
         }
         meta.lore(lore);
         item.setItemMeta(meta);
@@ -113,6 +143,38 @@ public final class SpawnerItems {
     public int readStackSize(ItemStack item) {
         Integer value = readInt(item, keyStack);
         return value == null ? 1 : Math.max(1, value);
+    }
+
+    /** Storage the item is carrying, empty when it holds none. */
+    public java.util.Map<ItemSig, Long> readStorage(ItemStack item) {
+        String payload = readString(item, keyStorage);
+        return payload == null
+                ? new java.util.LinkedHashMap<>()
+                : dev.havoc.spawners.storage.InventoryCodec.decode(payload);
+    }
+
+    public long readStoredExp(ItemStack item) {
+        if (item == null) {
+            return 0L;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return 0L;
+        }
+        Long value = meta.getPersistentDataContainer().get(keyStoredExp, PersistentDataType.LONG);
+        return value == null ? 0L : Math.max(0L, value);
+    }
+
+    private static long countOf(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return 0L;
+        }
+        long total = 0L;
+        for (java.util.Map.Entry<ItemSig, Long> entry
+                : dev.havoc.spawners.storage.InventoryCodec.decode(payload).entrySet()) {
+            total += entry.getValue();
+        }
+        return total;
     }
 
     public int readLevel(ItemStack item) {

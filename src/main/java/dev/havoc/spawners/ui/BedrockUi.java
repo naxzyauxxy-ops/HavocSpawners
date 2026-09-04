@@ -378,8 +378,9 @@ public final class BedrockUi {
                 + "s, even while you are offline.\n"
                 + faint() + "Auto-sell: " + (spawner.autoSell() ? good() + "on" : faint() + "off") + "\n"
                 + faint() + "Auto-collect: " + (spawner.autoCollect() ? good() + "on" : faint() + "off") + "\n"
-                + faint() + "Container: " + ink()
-                + (spawner.linkedContainer() == null ? "none" : spawner.linkedContainer().toString()) + "\n"
+                + faint() + "Hopper below: "
+                + (dev.havoc.spawners.feature.AutomationService.hasHopper(spawner)
+                        ? good() + "found" : bad() + "missing") + "\n"
                 + faint() + "Earned: " + ink() + plugin.economy().format(spawner.earnedMoney());
 
         var form = plugin.bedrock().simple(player, accent() + "Automation", content);
@@ -389,26 +390,15 @@ public final class BedrockUi {
             openAutomation(p, spawner);
         });
         form.button((spawner.autoCollect() ? bad() + "Disable" : good() + "Enable") + " auto-collect", p -> {
-            if (!spawner.autoCollect() && spawner.linkedContainer() == null) {
-                plugin.messages().send(p, "automation.link-first");
+            if (!spawner.autoCollect()
+                    && !dev.havoc.spawners.feature.AutomationService.hasHopper(spawner)) {
+                plugin.messages().send(p, "automation.needs-hopper");
                 return;
             }
             spawner.autoCollect(!spawner.autoCollect());
             plugin.storage().queueSave(spawner);
             openAutomation(p, spawner);
         });
-        form.button(accent() + "Link a container\n" + faint() + "Then tap a chest", p -> {
-            plugin.beginLinking(p, spawner);
-            plugin.messages().send(p, "automation.link-mode");
-        });
-        if (spawner.linkedContainer() != null) {
-            form.button(warn() + "Unlink container", p -> {
-                spawner.linkedContainer(null);
-                spawner.autoCollect(false);
-                plugin.storage().queueSave(spawner);
-                openAutomation(p, spawner);
-            });
-        }
         form.button(faint() + "Back", p -> openMain(p, spawner));
         form.send();
     }

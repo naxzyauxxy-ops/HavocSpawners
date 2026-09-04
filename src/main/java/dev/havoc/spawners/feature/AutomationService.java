@@ -7,6 +7,7 @@ import dev.havoc.spawners.spawner.ItemSig;
 import dev.havoc.spawners.spawner.SpawnerData;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Container;
@@ -55,7 +56,7 @@ public final class AutomationService {
             if (spawner.isBusy()) {
                 continue;
             }
-            if (collectOn && spawner.autoCollect() && spawner.linkedContainer() != null) {
+            if (collectOn && spawner.autoCollect()) {
                 collect(spawner);
             }
             if (sellOn && spawner.autoSell() && spawner.owner() != null) {
@@ -75,20 +76,47 @@ public final class AutomationService {
         plugin.sell().sellAll(spawner, spawner.owner());
     }
 
+    /** The block a spawner's hopper must occupy: directly underneath it. */
+    public static BlockKey hopperKey(SpawnerData spawner) {
+        BlockKey key = spawner.position();
+        return new BlockKey(key.world(), key.x(), key.y() - 1, key.z());
+    }
+
+    /**
+     * Whether a hopper is sitting under this spawner right now.
+     * <p>
+     * Only safe to call from the region that owns the spawner - which is always true from a menu the
+     * player opened by clicking it.
+     */
+    public static boolean hasHopper(SpawnerData spawner) {
+        BlockKey below = hopperKey(spawner);
+        if (!below.isLoaded()) {
+            return false;
+        }
+        Location location = below.toBlockLocation();
+        return location != null && location.getBlock().getType() == Material.HOPPER;
+    }
+
+    /**
+     * Pushes stored items into the hopper under the spawner.
+     * <p>
+     * A hopper directly below the spawner is the only accepted target - no linking, no other
+     * container types, no search radius. Remove the hopper and collection simply stops.
+     */
     private void collect(SpawnerData spawner) {
-        BlockKey key = spawner.linkedContainer();
-        Location location = key.toBlockLocation();
-        if (location == null || !key.isLoaded()) {
+        BlockKey below = hopperKey(spawner);
+        Location location = below.toBlockLocation();
+        if (location == null || !below.isLoaded()) {
             return;
         }
         plugin.sched().region(location, () -> {
             Block block = location.getBlock();
+            if (block.getType() != Material.HOPPER) {
+                // No hopper: leave the toggle alone so rebuilding one resumes collection.
+                return;
+            }
             BlockState state = block.getState(false);
             if (!(state instanceof Container container)) {
-                // The chest is gone; stop pretending the link still exists.
-                spawner.linkedContainer(null);
-                spawner.autoCollect(false);
-                plugin.storage().queueSave(spawner);
                 return;
             }
             Inventory inventory = container.getInventory();

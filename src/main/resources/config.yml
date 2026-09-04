@@ -107,8 +107,15 @@ spawner:
 breaking:
   enabled: true
   direct-to-inventory: true
-  # Storage contents are handed back when the spawner is broken.
-  drop-storage-on-break: true
+  # What happens to stored items when a spawner is broken.
+  #
+  #   KEEP_IN_ITEM  the contents travel inside the spawner item and come back when
+  #                 it is placed again. Nothing is dropped, nothing is lost, and
+  #                 breaking a spawner holding millions of items costs nothing.
+  #   VOID          the contents are destroyed. Fast, but players lose the lot.
+  #   DROP          throw everything out on the ground (the old behaviour - this is
+  #                 what lags the server on a large spawner).
+  storage-on-break: KEEP_IN_ITEM
   required-tools:
     - IRON_PICKAXE
     - GOLDEN_PICKAXE
@@ -179,8 +186,9 @@ automation:
     min-value: 1.0
   auto-collect:
     enabled: true
-    # How far a linked container may be from the spawner.
-    link-radius: 8
+    # Auto-collect feeds a HOPPER placed DIRECTLY UNDER the spawner - nothing else.
+    # No linking, no other container types, no radius. Break the hopper and
+    # collection simply stops until one is put back.
     stacks-per-run: 32
 
 # ----------------------------------------------------------------------------

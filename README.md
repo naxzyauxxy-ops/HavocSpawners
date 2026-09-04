@@ -36,7 +36,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.6.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.7.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -107,9 +107,12 @@ The same engine drains an entire network from one button.
 ## Exclusive features
 
 **Auto-sell & auto-collect** — per spawner, running every `automation.interval-seconds` even while
-the owner is offline. Auto-sell pays priced drops into the owner's balance; auto-collect pushes
-stacks into a linked chest, barrel or hopper (link it by clicking *Link a container* and right-clicking
-the block). Both are bounded per pass so a full double chest never stalls a region thread.
+the owner is offline. Auto-sell pays priced drops into the owner's balance.
+
+Auto-collect feeds **a hopper placed directly under the spawner** — that block and nothing else. No
+linking step, no other container types, no search radius. Break the hopper and collection stops until
+one is put back; the toggle is left alone so rebuilding resumes it. Each pass moves a bounded number
+of stacks, so a hopper chain never stalls a region thread.
 
 **Upgrade tiers** — five levels out of the box (`upgrades.yml`), each buying faster cycles, a loot
 multiplier, extra storage pages, extra XP capacity and extra activation range. Levels ride along on
@@ -200,7 +203,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.6.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.7.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -239,6 +242,24 @@ bedrock:
 
 Two things worth knowing: Bedrock forms carry no item icons, so storage rows are shown as
 `Name / count` text; and Bedrock has no hex colour support, hence the separate legacy palette.
+
+---
+
+## Breaking a spawner
+
+Breaking a full spawner used to throw its entire contents on the ground, which is exactly the kind of
+entity flood that drops TPS. It no longer drops anything: `breaking.storage-on-break` decides what
+happens instead.
+
+| Mode | What happens |
+|---|---|
+| `KEEP_IN_ITEM` *(default)* | The contents ride **inside the spawner item** and come back when it is placed again. Instant, lossless, zero entities — breaking a spawner holding four million bones costs the same as an empty one. |
+| `VOID` | Contents are destroyed. Fast, but players lose the lot. |
+| `DROP` | The old behaviour. Still metered, but this is the setting that costs TPS. |
+
+With `KEEP_IN_ITEM` the item's lore shows what it is carrying, and placing it restores the storage
+without a capacity check — so tightening `pages-per-stack` later can never delete what a player
+already had. Stored XP still goes straight to the breaker either way.
 
 ---
 
