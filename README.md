@@ -36,7 +36,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.1.0.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.1.1.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -140,6 +140,7 @@ rather than lifetime averages, and `/hs top` ranks the best earners.
 | `/hs clearghosts` | `havocspawners.command.reload` | Drops spawners whose world is gone |
 | `/hs fixblocks` | `havocspawners.command.reload` | Repairs spawner blocks showing the wrong mob |
 | `/hs settype mob\|item <TYPE>` | `havocspawners.command.reload` | Forces the type of the spawner you are looking at |
+| `/hs inspect` | `havocspawners.command.reload` | Dumps what the held spawner item really contains |
 | `/hs stats` | `havocspawners.command.reload` | Runtime counters |
 
 Aliases: `/havocspawners`, `/hspawners`, `/havoc`, and — for drop-in compatibility with an existing
@@ -205,7 +206,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.1.0.jar
+gradle build        # -> build/libs/HavocSpawners-1.1.1.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -299,6 +300,35 @@ spawner came out the other side as an item spawner. So:
 
 Where a name contains both — `Rabbit Spawner`, with `RABBIT` being an entity *and* an item — the
 entity wins.
+
+**Unless the item declares itself.** SmartSpawner records an item spawner as the literal token `ITEM`
+where a mob spawner names a mob, with the material stored beside it:
+
+```yaml
+entityType: ITEM
+itemSpawnerMaterial: BONE_BLOCK
+```
+
+That token is a declaration, and once it is present there is nothing left to confuse a material with
+— so the caution above is dropped: the material is taken from *any* key, or from anywhere in the
+name, and a declared item spawner is never turned back into a mob spawner by a stray mob name. If it
+declares itself but never says which material, it says so in chat and points at `/hs settype` rather
+than silently becoming a pig.
+
+### When it still gets it wrong
+
+`/hs inspect`, holding the spawner, prints everything the item actually carries — its name, its block
+data, every persistent-data key and value, and the verdict the reader reached:
+
+```
+│ Ours        false
+│ Name        ʙᴏɴᴇ ʙʟᴏᴄᴋ ꜱᴘᴀᴡɴᴇʀ
+│ smartspawner:entitytype            ITEM
+│ smartspawner:itemspawnermaterial   BONE_BLOCK
+│ Verdict     item BONE_BLOCK (from item data (declared))
+```
+
+That is the whole diagnosis in one screenshot, instead of guessing from the symptom.
 
 ```yaml
 legacy:

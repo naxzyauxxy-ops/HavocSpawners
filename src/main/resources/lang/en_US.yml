@@ -103,6 +103,8 @@ spawner:
   empty-first: "<color:#ff8a95>Empty the storage before changing the spawner type.</color>"
   # <type>  - an old or foreign spawner item that would not say what it is
   legacy-unknown: "<color:#ff8a95>That spawner item is not one of ours and does not record its type, so it was placed as <white><type></white>. Right-click it with a spawn egg to set the correct one.</color>"
+  # <type>  - an old item spawner that said it was one but not which material
+  legacy-unknown-item: "<color:#ff8a95>That is an old <white>item spawner</white>, but it does not say which item. It was placed as <white><type></white> - fix it with <color:#ff2b3d>/hs settype item [MATERIAL]</color>.</color>"
 
 # ---------------------------------------------------------------- commands
 list:
@@ -141,6 +143,9 @@ fixblocks:
 
 settype:
   usage: "<color:#ff8a95>/hs settype (mob|item) [TYPE] <color:#9b9ba1>- look at the spawner first</color></color>"
+
+inspect:
+  not-a-spawner: "<color:#ff8a95>Hold a spawner item to inspect it.</color>"
 
 clearghosts:
   # <count>

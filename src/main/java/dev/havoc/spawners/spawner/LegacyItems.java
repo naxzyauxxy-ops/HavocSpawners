@@ -13,6 +13,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -40,13 +41,30 @@ import java.util.Map;
  * spawner became a bone-block spawner. So a material is only accepted from a key that says it holds
  * one, or from the words immediately in front of "SPAWNER" in the item's name. An entity type is
  * accepted from anywhere, because a mob name on a spawner item is never an accident.
+ * <p>
+ * The exception is an item that <em>declares</em> itself. SmartSpawner records an item spawner as the
+ * literal token {@code ITEM} where a mob spawner would name a mob, with the material stored beside it
+ * ({@code entityType: ITEM, itemSpawnerMaterial: BONE_BLOCK}). Once that token is present there is
+ * nothing left to confuse a material with, so the caution is dropped and a material is taken from any
+ * key - and a declared item spawner is never turned back into a mob spawner by a stray mob name.
  */
 public final class LegacyItems {
 
-    /** What we managed to work out. Both types null means "no idea". */
-    public record Guess(EntityType entityType, Material itemMaterial, int stackSize, String source) {
+    /**
+     * What we managed to work out. Both types null means "no idea".
+     *
+     * @param declaredItem the item said outright that it is an item spawner (SmartSpawner writes the
+     *                     literal token {@code ITEM} where a mob spawner would name a mob). That
+     *                     removes the ambiguity that makes us cautious about materials elsewhere.
+     */
+    public record Guess(EntityType entityType, Material itemMaterial, int stackSize, String source,
+                        boolean declaredItem) {
 
-        public static final Guess EMPTY = new Guess(null, null, 1, "unknown");
+        public static final Guess EMPTY = new Guess(null, null, 1, "unknown", false);
+
+        public Guess(EntityType entityType, Material itemMaterial, int stackSize, String source) {
+            this(entityType, itemMaterial, stackSize, source, itemMaterial != null);
+        }
 
         public boolean found() {
             return entityType != null || itemMaterial != null;
@@ -115,13 +133,15 @@ public final class LegacyItems {
             }
         }
 
-        // 2. Foreign persistent data. Values are matched against entity types freely, because an
-        //    entity name in a spawner item's data is never a coincidence. A *material* is only
-        //    believed when the key it sits under says it is one - otherwise any plugin that happened
-        //    to store "STONE" or "BONE" against a mob spawner would turn it into an item spawner.
+        // 2. Foreign persistent data, read in two passes.
+        //
+        //    SmartSpawner stores an item spawner as the literal token ITEM where a mob spawner names
+        //    a mob, with the material alongside it ("entityType: ITEM, itemSpawnerMaterial:
+        //    BONE_BLOCK"). That token is a *declaration*, and it is what the first pass looks for.
+        //    Once an item has declared itself, the ambiguity that makes us cautious about materials
+        //    is gone, so the second pass will take a material from any key at all.
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        EntityType entity = null;
-        Material material = null;
+        Map<String, String> data = new LinkedHashMap<>();
         try {
             for (NamespacedKey key : pdc.getKeys()) {
                 String name = key.getKey().toLowerCase(Locale.ROOT);
@@ -132,31 +152,55 @@ public final class LegacyItems {
                     continue;
                 }
                 String value = readString(pdc, key);
-                if (value == null || value.isBlank()) {
-                    continue;
-                }
-                EntityType candidate = entityOf(value);
-                if (candidate != null) {
-                    if (entity == null) {
-                        entity = candidate;
-                    }
-                    continue;
-                }
-                if (material == null && namesAMaterial(name)) {
-                    Material block = materialOf(value);
-                    if (block != null) {
-                        material = block;
-                    }
+                if (value != null && !value.isBlank()) {
+                    data.put(name, value);
                 }
             }
         } catch (Throwable ignored) {
             // Never let an unreadable container stop a placement.
+        }
+
+        boolean declaredItem = false;
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            if (isItemDeclaration(entry.getKey()) || isItemDeclaration(entry.getValue())) {
+                declaredItem = true;
+                break;
+            }
+        }
+
+        EntityType entity = null;
+        Material material = null;
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+            String value = entry.getValue();
+            if (entity == null) {
+                entity = entityOf(value);
+                if (entity != null) {
+                    continue;
+                }
+            }
+            if (material == null && (declaredItem || namesAMaterial(entry.getKey()))) {
+                material = materialOf(value);
+            }
+        }
+        // A declaration outranks a stray mob name: an item spawner that happens to carry the mob it
+        // was converted from is still an item spawner.
+        if (declaredItem && material != null) {
+            return new Guess(null, material, stack, "item data (declared)", true);
         }
         if (entity != null) {
             return new Guess(entity, null, stack, "item data");
         }
         if (material != null) {
             return new Guess(null, material, stack, "item data");
+        }
+        if (declaredItem) {
+            // It told us it is an item spawner but never said of what. Try the name for a material
+            // without the usual anchoring, since there is nothing left to confuse it with.
+            Material named = meta.hasDisplayName() ? materialIn(plain(meta.displayName())) : null;
+            if (named != null) {
+                return new Guess(null, named, stack, "item name (declared)", true);
+            }
+            return new Guess(null, null, stack, "item spawner of unknown material", true);
         }
 
         // 3. The name, then the lore. Least trustworthy, so it runs last - but it is what saves an
@@ -185,6 +229,38 @@ public final class LegacyItems {
             }
         }
         return new Guess(null, null, stack, "unknown");
+    }
+
+    /**
+     * True for the token an item spawner identifies itself with.
+     * <p>
+     * SmartSpawner writes {@code entityType: ITEM} - the one place in the data where "ITEM" appears
+     * as a type rather than as part of a longer word, which is why this matches whole tokens only.
+     */
+    private static boolean isItemDeclaration(String raw) {
+        if (raw == null) {
+            return false;
+        }
+        String token = raw.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return token.equals("ITEM") || token.equals("ITEM_SPAWNER") || token.equals("ITEMSPAWNER")
+                || token.equals("SPAWNER_ITEM");
+    }
+
+    /** Any material named anywhere in a line - only used once an item has declared itself. */
+    private static Material materialIn(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String[] words = words(normalise(raw).replace("SPAWNER", " "));
+        for (int size = Math.min(3, words.length); size >= 1; size--) {
+            for (int start = 0; start + size <= words.length; start++) {
+                Material material = materialOf(join(words, start, size));
+                if (material != null) {
+                    return material;
+                }
+            }
+        }
+        return null;
     }
 
     /** True when a persistent-data key is claiming to hold a material rather than anything else. */

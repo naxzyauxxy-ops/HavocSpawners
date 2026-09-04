@@ -132,8 +132,11 @@ public final class BlockListener implements Listener {
         }
 
         if (unknown && plugin.settings().legacyWarnUnknown) {
-            plugin.messages().send(player, "spawner.legacy-unknown", Messages.of(
-                    "type", adopted.displayType()));
+            // An item that said "I am an item spawner" but never said of what is a different problem
+            // from one that said nothing at all, and it has a different fix.
+            plugin.messages().send(player,
+                    guess.declaredItem() ? "spawner.legacy-unknown-item" : "spawner.legacy-unknown",
+                    Messages.of("type", adopted.displayType()));
         }
         plugin.messages().send(player, "spawner.placed", Messages.of(
                 "type", adopted.displayType(),

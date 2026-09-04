@@ -28,7 +28,7 @@ public final class HavocCommand implements TabExecutor {
 
     private static final List<String> SUBCOMMANDS = List.of(
             "help", "reload", "give", "list", "near", "prices", "top", "import", "info", "clearghosts",
-            "stats", "fixblocks", "settype");
+            "stats", "fixblocks", "settype", "inspect");
 
     private final HavocSpawners plugin;
 
@@ -55,6 +55,7 @@ public final class HavocCommand implements TabExecutor {
             case "clearghosts" -> clearGhosts(sender);
             case "fixblocks" -> fixBlocks(sender);
             case "settype" -> setType(sender, args);
+            case "inspect" -> inspect(sender);
             case "stats" -> stats(sender);
             default -> help(sender);
         }
@@ -81,6 +82,7 @@ public final class HavocCommand implements TabExecutor {
             line(sender, "/hs clearghosts", "Remove spawners whose world is gone");
             line(sender, "/hs fixblocks", "Repair spawner blocks showing the wrong mob");
             line(sender, "/hs settype (mob|item) [TYPE]", "Force the type of the spawner you are looking at");
+            line(sender, "/hs inspect", "Show what the spawner item in your hand really contains");
             line(sender, "/hs stats", "Plugin runtime statistics");
         }
     }
@@ -347,6 +349,76 @@ public final class HavocCommand implements TabExecutor {
         plugin.storage().queueSave(spawner);
         dev.havoc.spawners.spawner.SpawnerBlocks.apply(block, spawner);
         plugin.messages().send(sender, "spawner.type-changed", Messages.of("type", spawner.displayType()));
+    }
+
+    /**
+     * Dumps everything a held spawner item is carrying, and what we make of it.
+     * <p>
+     * Exists because "an old spawner placed wrong" is otherwise impossible to diagnose remotely: the
+     * answer lives in persistent data nobody can see. This prints it.
+     */
+    private void inspect(CommandSender sender) {
+        if (!sender.hasPermission("havocspawners.command.reload")) {
+            plugin.messages().send(sender, "no-permission");
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            plugin.messages().send(sender, "players-only");
+            return;
+        }
+        ItemStack held = player.getInventory().getItemInMainHand();
+        if (held.getType() != Material.SPAWNER) {
+            plugin.messages().send(sender, "inspect.not-a-spawner");
+            return;
+        }
+        sender.sendMessage(Text.mm("<color:" + Ui.ACCENT + "><bold>Spawner item</bold></color>"));
+        line(sender, "Ours", String.valueOf(plugin.items().isHavocSpawner(held)));
+
+        var meta = held.getItemMeta();
+        if (meta != null) {
+            if (meta.hasDisplayName()) {
+                line(sender, "Name", net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+                        .plainText().serialize(meta.displayName()));
+            }
+            if (meta instanceof org.bukkit.inventory.meta.BlockStateMeta blockStateMeta) {
+                try {
+                    if (blockStateMeta.hasBlockState()
+                            && blockStateMeta.getBlockState() instanceof org.bukkit.block.CreatureSpawner cage) {
+                        line(sender, "Block data", String.valueOf(cage.getSpawnedType()));
+                    }
+                } catch (Throwable ignored) {
+                    line(sender, "Block data", "unreadable");
+                }
+            }
+            for (org.bukkit.NamespacedKey key : meta.getPersistentDataContainer().getKeys()) {
+                String value = null;
+                for (org.bukkit.persistence.PersistentDataType<?, ?> type : new org.bukkit.persistence.PersistentDataType<?, ?>[]{
+                        org.bukkit.persistence.PersistentDataType.STRING,
+                        org.bukkit.persistence.PersistentDataType.INTEGER,
+                        org.bukkit.persistence.PersistentDataType.LONG,
+                        org.bukkit.persistence.PersistentDataType.BYTE}) {
+                    try {
+                        Object read = meta.getPersistentDataContainer().get(key, type);
+                        if (read != null) {
+                            value = String.valueOf(read);
+                            break;
+                        }
+                    } catch (Throwable ignored) {
+                        // Wrong type for this key - try the next one.
+                    }
+                }
+                // A serialised inventory can be enormous; nobody needs to read it in chat.
+                if (value != null && value.length() > 60) {
+                    value = value.substring(0, 60) + "... (" + value.length() + " chars)";
+                }
+                line(sender, key.toString(), value == null ? "<unreadable type>" : value);
+            }
+        }
+        var guess = dev.havoc.spawners.spawner.LegacyItems.resolve(held);
+        line(sender, "Verdict", (guess.entityType() != null ? "mob " + guess.entityType()
+                : guess.itemMaterial() != null ? "item " + guess.itemMaterial()
+                : guess.declaredItem() ? "item spawner, material unknown" : "unidentified")
+                + " (from " + guess.source() + ")");
     }
 
     private void clearGhosts(CommandSender sender) {
