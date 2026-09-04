@@ -5,6 +5,7 @@ import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.config.Settings;
 import dev.havoc.spawners.spawner.BlockKey;
 import dev.havoc.spawners.spawner.ItemSig;
+import dev.havoc.spawners.spawner.SpawnerBlocks;
 import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.storage.InventoryCodec;
 import dev.havoc.spawners.util.ItemThrow;
@@ -60,6 +61,7 @@ public final class BlockListener implements Listener {
             // A vanilla spawner item: adopt it so the block is never left unmanaged.
             EntityType type = readBlockType(block);
             SpawnerData adopted = plugin.spawners().create(key, type, null, player, 1);
+            syncBlock(block, adopted);
             plugin.messages().send(player, "spawner.placed", Messages.of(
                     "type", adopted.displayType(), "stack", "1"));
             return;
@@ -84,11 +86,23 @@ public final class BlockListener implements Listener {
             spawner.storedExp(carriedExp);
         }
         plugin.storage().queueSave(spawner);
+        syncBlock(block, spawner);
 
         plugin.messages().send(player, restored > 0L ? "spawner.placed-restored" : "spawner.placed",
                 Messages.of("type", spawner.displayType(),
                         "stack", Numbers.plain(stackSize),
                         "items", Numbers.plain(restored)));
+    }
+
+    /**
+     * Stamps the spawner's real type onto the block.
+     * <p>
+     * Applied immediately and again a tick later, because vanilla writes the item's own block-entity
+     * data around placement time and we want ours to be the version that sticks.
+     */
+    private void syncBlock(Block block, SpawnerData spawner) {
+        SpawnerBlocks.apply(block, spawner);
+        plugin.sched().regionLater(block.getLocation(), () -> SpawnerBlocks.apply(block, spawner), 1L);
     }
 
     private EntityType readBlockType(Block block) {

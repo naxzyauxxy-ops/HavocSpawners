@@ -58,14 +58,16 @@ public final class SpawnerItems {
         if (meta == null) {
             return item;
         }
-        if (meta instanceof BlockStateMeta blockStateMeta && entityType != null) {
+        if (meta instanceof BlockStateMeta blockStateMeta) {
             try {
                 if (blockStateMeta.getBlockState() instanceof CreatureSpawner spawnerState) {
-                    spawnerState.setSpawnedType(entityType);
+                    // null for an item spawner: an empty cage in the item preview beats a stray pig.
+                    spawnerState.setSpawnedType(itemMaterial != null ? null : entityType);
                     blockStateMeta.setBlockState(spawnerState);
                 }
             } catch (Throwable ignored) {
-                // Some entity types cannot be placed in a vanilla spawner; the PDC still carries the type.
+                // Not every type round-trips through an item's block state - the block itself is
+                // corrected on placement by SpawnerBlocks, so this is only a nicety.
             }
         }
 

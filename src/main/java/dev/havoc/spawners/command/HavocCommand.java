@@ -27,7 +27,8 @@ import java.util.Locale;
 public final class HavocCommand implements TabExecutor {
 
     private static final List<String> SUBCOMMANDS = List.of(
-            "help", "reload", "give", "list", "near", "prices", "top", "import", "info", "clearghosts", "stats");
+            "help", "reload", "give", "list", "near", "prices", "top", "import", "info", "clearghosts",
+            "stats", "fixblocks");
 
     private final HavocSpawners plugin;
 
@@ -52,6 +53,7 @@ public final class HavocCommand implements TabExecutor {
             case "import" -> runImport(sender, args);
             case "info" -> info(sender);
             case "clearghosts" -> clearGhosts(sender);
+            case "fixblocks" -> fixBlocks(sender);
             case "stats" -> stats(sender);
             default -> help(sender);
         }
@@ -76,6 +78,7 @@ public final class HavocCommand implements TabExecutor {
         if (sender.hasPermission("havocspawners.command.reload")) {
             line(sender, "/hs reload", "Reload configuration");
             line(sender, "/hs clearghosts", "Remove spawners whose world is gone");
+            line(sender, "/hs fixblocks", "Repair spawner blocks showing the wrong mob");
             line(sender, "/hs stats", "Plugin runtime statistics");
         }
     }
@@ -296,6 +299,45 @@ public final class HavocCommand implements TabExecutor {
         }
         int removed = plugin.spawners().purgeGhosts();
         plugin.messages().send(sender, "clearghosts.done", Messages.of("count", String.valueOf(removed)));
+    }
+
+    /**
+     * Re-stamps every loaded spawner block with its real type.
+     * <p>
+     * Repairs worlds placed before the block-state fix, where item and shulker spawners rendered as
+     * pig spawners because vanilla had no spawn data to show.
+     */
+    private void fixBlocks(CommandSender sender) {
+        if (!sender.hasPermission("havocspawners.command.reload")) {
+            plugin.messages().send(sender, "no-permission");
+            return;
+        }
+        java.util.concurrent.atomic.AtomicInteger repaired = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger skipped = new java.util.concurrent.atomic.AtomicInteger();
+
+        for (SpawnerData spawner : plugin.spawners().all()) {
+            BlockKey key = spawner.position();
+            if (!key.isLoaded()) {
+                skipped.incrementAndGet();
+                continue;
+            }
+            var location = key.toBlockLocation();
+            if (location == null) {
+                skipped.incrementAndGet();
+                continue;
+            }
+            plugin.sched().region(location, () -> {
+                var block = location.getBlock();
+                if (dev.havoc.spawners.spawner.SpawnerBlocks.mismatched(block, spawner)
+                        && dev.havoc.spawners.spawner.SpawnerBlocks.apply(block, spawner)) {
+                    repaired.incrementAndGet();
+                }
+            });
+        }
+        // Give the region tasks a moment to land before reporting.
+        plugin.sched().globalLater(() -> plugin.messages().send(sender, "fixblocks.done", Messages.of(
+                "repaired", String.valueOf(repaired.get()),
+                "skipped", String.valueOf(skipped.get()))), 40L);
     }
 
     private void stats(CommandSender sender) {

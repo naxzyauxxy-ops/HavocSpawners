@@ -133,6 +133,10 @@ import:
   # <imported> <skipped> <failed> <items>
   done: "<color:#ffffff>Import finished: <color:#ff2b3d><imported></color> imported, <color:#ff2b3d><skipped></color> skipped, <color:#ff2b3d><failed></color> failed, <color:#ff2b3d><items></color> items moved.</color>"
 
+fixblocks:
+  # <repaired> <skipped>
+  done: "<color:#ffffff>Repaired <color:#ff2b3d><repaired></color> spawner blocks. <color:#9b9ba1><skipped> were in unloaded chunks - fly near them and run it again.</color></color>"
+
 clearghosts:
   # <count>
   done: "<color:#ffffff>Removed <color:#ff2b3d><count></color> ghost spawners.</color>"

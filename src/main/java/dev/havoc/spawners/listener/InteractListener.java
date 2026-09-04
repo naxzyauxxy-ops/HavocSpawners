@@ -3,6 +3,7 @@ package dev.havoc.spawners.listener;
 import dev.havoc.spawners.HavocSpawners;
 import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.spawner.BlockKey;
+import dev.havoc.spawners.spawner.SpawnerBlocks;
 import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.util.Numbers;
 import org.bukkit.Material;
@@ -103,6 +104,8 @@ public final class InteractListener implements Listener {
     }
 
     private void changeType(Player player, SpawnerData spawner, ItemStack egg) {
+        Block block = spawner.position().toBlockLocation() == null
+                ? null : spawner.position().toBlockLocation().getBlock();
         if (!player.hasPermission("havocspawners.changetype")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -125,6 +128,7 @@ public final class InteractListener implements Listener {
         if (player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
             egg.setAmount(egg.getAmount() - 1);
         }
+        SpawnerBlocks.apply(block, spawner);
         plugin.messages().send(player, "spawner.type-changed", Messages.of("type", spawner.displayType()));
     }
 }

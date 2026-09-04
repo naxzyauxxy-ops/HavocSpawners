@@ -36,7 +36,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.7.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.8.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -138,6 +138,7 @@ rather than lifetime averages, and `/hs top` ranks the best earners.
 | `/hs import yaml\|sqlite\|mysql` | `havocspawners.command.import` | SmartSpawner import |
 | `/hs reload` | `havocspawners.command.reload` | Reloads every config file |
 | `/hs clearghosts` | `havocspawners.command.reload` | Drops spawners whose world is gone |
+| `/hs fixblocks` | `havocspawners.command.reload` | Repairs spawner blocks showing the wrong mob |
 | `/hs stats` | `havocspawners.command.reload` | Runtime counters |
 
 Aliases: `/havocspawners`, `/hspawners`, `/havoc`, and — for drop-in compatibility with an existing
@@ -203,7 +204,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.7.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.8.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -260,6 +261,31 @@ happens instead.
 With `KEEP_IN_ITEM` the item's lore shows what it is carrying, and placing it restores the storage
 without a capacity check — so tightening `pages-per-stack` later can never delete what a player
 already had. Stored XP still goes straight to the breaker either way.
+
+---
+
+## The spinning mob in the cage
+
+A spawner block gets the mob it displays from vanilla `block_entity_data`, not from the plugin. That
+data does not exist for every spawner: an **item spawner** has no entity to put there at all, and a
+few entity types do not round-trip through an item's block state. When it is missing the client falls
+back to vanilla's default spawn data — a **pig** — which is why bone block and shulker spawners looked
+like pig spawners even though the plugin's own data was correct the whole time.
+
+The block state is now written from plugin data at placement (and again a tick later, so it wins over
+vanilla's own write), and whenever a spawner's type is changed with an egg. Item spawners get an empty
+cage rather than a stray pig. That fixes every type at once rather than special-casing the two that
+were reported.
+
+Spawners **already placed** in your world still carry the wrong block data. Run:
+
+```
+/hs fixblocks
+```
+
+It walks every known spawner, repairs the ones whose displayed type disagrees with their real type,
+and reports how many were skipped because their chunk was not loaded — fly out to those and run it
+again. Storage, stack size, level and type were never affected, so nothing is lost either way.
 
 ---
 
