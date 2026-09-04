@@ -4,6 +4,7 @@ import dev.havoc.spawners.HavocSpawners;
 import dev.havoc.spawners.util.Numbers;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.EntityType;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -146,6 +147,10 @@ public final class Settings {
     public String importUser = "root";
     public String importPassword = "";
 
+    // legacy / foreign spawner items
+    public EntityType legacyFallbackType = EntityType.PIG;
+    public boolean legacyWarnUnknown = true;
+
     public static Settings load(HavocSpawners plugin) {
         FileConfiguration c = plugin.getConfig();
         Settings s = new Settings();
@@ -270,12 +275,27 @@ public final class Settings {
         s.importUser = c.getString("import.mysql.username", "root");
         s.importPassword = c.getString("import.mysql.password", "");
 
+        s.legacyFallbackType = entityOf(c.getString("legacy.unknown-type", "PIG"), EntityType.PIG);
+        s.legacyWarnUnknown = c.getBoolean("legacy.warn-on-unknown", true);
+
         if (s.requiredTools.isEmpty()) {
             List<Material> fallback = List.of(Material.IRON_PICKAXE, Material.GOLDEN_PICKAXE,
                     Material.DIAMOND_PICKAXE, Material.NETHERITE_PICKAXE);
             s.requiredTools.addAll(fallback);
         }
         return s;
+    }
+
+    /** An entity type by name; anything unrecognised keeps the fallback rather than failing to load. */
+    private static EntityType entityOf(String raw, EntityType fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return EntityType.valueOf(raw.trim().toUpperCase(Locale.ROOT).replace(' ', '_'));
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
     }
 
     /** Accepts "#rrggbb" (with or without the hash); anything else keeps the built-in colour. */

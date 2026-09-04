@@ -36,7 +36,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.8.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.0.9.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -204,7 +204,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.8.jar
+gradle build        # -> build/libs/HavocSpawners-1.0.9.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -261,6 +261,38 @@ happens instead.
 With `KEEP_IN_ITEM` the item's lore shows what it is carrying, and placing it restores the storage
 without a capacity check — so tightening `pages-per-stack` later can never delete what a player
 already had. Stored XP still goes straight to the breaker either way.
+
+---
+
+## Old and foreign spawner items
+
+A spawner item minted by **SmartSpawner**, by an older build of this plugin, by a crate, a shop or a
+plain `/give` carries none of HavocSpawners' persistent data. Placing one used to fall straight
+through to a hard-coded pig — so every old spawner sitting in a player's ender chest turned into a
+pig spawner the moment it hit the ground.
+
+Placement now interrogates the item properly, in descending order of trust:
+
+1. **the item's own block data** — where vanilla, WorldEdit and most plugins keep the type;
+2. **any foreign persistent data** — scanned by *value* rather than by key name, so it reads
+   SmartSpawner and plugins nobody has written yet, with no namespace list to keep updated;
+3. **the display name and lore** — colour codes (`§a`, `&c`, `&#f40d0d`) stripped and small caps
+   like `ᴢᴏᴍʙɪᴇ ꜱᴘᴀᴡɴᴇʀ` folded back to ASCII, longest word-run matched first so *Cave Spider* beats
+   *Spider*, and old names like *Zombie Pigman* mapped to their modern types;
+4. **the block itself, one tick later** — in case vanilla had not written the item's data yet.
+
+Only when all four come back empty does `legacy.unknown-type` apply, and the player is told so they
+can correct it with a spawn egg rather than quietly running a pig farm.
+
+```yaml
+legacy:
+  unknown-type: PIG      # what an unidentifiable spawner item becomes
+  warn-on-unknown: true  # tell the player when we had to guess
+```
+
+Spawners **already placed as pigs** by an earlier build are recoverable too: `/hs fixblocks` now
+treats a spawner stored as the fallback type whose *block* names something else as evidence, and
+adopts the block's type back into the database. It reports those separately as *recovered*.
 
 ---
 

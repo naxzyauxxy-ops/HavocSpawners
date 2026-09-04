@@ -242,3 +242,26 @@ import:
     database: smartspawner
     username: root
     password: ''
+
+# ----------------------------------------------------------------------------
+# Legacy / foreign spawner items
+#
+# A spawner item minted by SmartSpawner, by an older build of this plugin, by a
+# crate, a shop or /give carries none of HavocSpawners' own data. Placing one
+# used to fall straight through to a pig - which is why every old spawner in a
+# player's ender chest became a pig spawner the moment it hit the ground.
+#
+# Placement now reads, in this order:
+#   1. the item's own block data      (vanilla, WorldEdit, most plugins)
+#   2. any foreign persistent data    (SmartSpawner and anything else)
+#   3. the item's name and lore       (small caps and colour codes stripped)
+#   4. the block itself, one tick later, in case vanilla had not written yet
+#
+# Only when all four come back empty is the fallback below used.
+# ----------------------------------------------------------------------------
+legacy:
+  # What an unidentifiable spawner item becomes. Any entity type name.
+  unknown-type: PIG
+  # Tell the player when a spawner could not be identified, so a wrong type gets
+  # reported instead of quietly becoming a pig farm.
+  warn-on-unknown: true

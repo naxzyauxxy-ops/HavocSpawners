@@ -4,6 +4,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.CreatureSpawner;
+import org.bukkit.entity.EntityType;
 
 /**
  * Writes the vanilla spawner block's own state from our data.
@@ -50,6 +51,18 @@ public final class SpawnerBlocks {
             return state.update(true, false);
         } catch (Throwable ex) {
             return false;
+        }
+    }
+
+    /** The mob the block itself claims to hold, or null when it holds none. Never guesses. */
+    public static EntityType blockType(Block block) {
+        if (block == null || block.getType() != Material.SPAWNER) {
+            return null;
+        }
+        try {
+            return block.getState(false) instanceof CreatureSpawner cage ? cage.getSpawnedType() : null;
+        } catch (Throwable ex) {
+            return null;
         }
     }
 

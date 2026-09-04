@@ -314,6 +314,7 @@ public final class HavocCommand implements TabExecutor {
         }
         java.util.concurrent.atomic.AtomicInteger repaired = new java.util.concurrent.atomic.AtomicInteger();
         java.util.concurrent.atomic.AtomicInteger skipped = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger adopted = new java.util.concurrent.atomic.AtomicInteger();
 
         for (SpawnerData spawner : plugin.spawners().all()) {
             BlockKey key = spawner.position();
@@ -328,8 +329,23 @@ public final class HavocCommand implements TabExecutor {
             }
             plugin.sched().region(location, () -> {
                 var block = location.getBlock();
-                if (dev.havoc.spawners.spawner.SpawnerBlocks.mismatched(block, spawner)
-                        && dev.havoc.spawners.spawner.SpawnerBlocks.apply(block, spawner)) {
+                if (!dev.havoc.spawners.spawner.SpawnerBlocks.mismatched(block, spawner)) {
+                    return;
+                }
+                // A spawner sitting on the fallback type while the block itself names something else
+                // is one that was adopted from a foreign item before we could read it properly.
+                // The block is the surviving evidence, so believe it rather than overwriting it.
+                if (!spawner.isItemSpawner() && spawner.entityType() == plugin.settings().legacyFallbackType) {
+                    var real = dev.havoc.spawners.spawner.SpawnerBlocks.blockType(block);
+                    if (real != null && real != spawner.entityType()) {
+                        spawner.entityType(real);
+                        spawner.recompute(plugin.settings(), plugin.upgrades());
+                        plugin.storage().queueSave(spawner);
+                        adopted.incrementAndGet();
+                        return;
+                    }
+                }
+                if (dev.havoc.spawners.spawner.SpawnerBlocks.apply(block, spawner)) {
                     repaired.incrementAndGet();
                 }
             });
@@ -337,6 +353,7 @@ public final class HavocCommand implements TabExecutor {
         // Give the region tasks a moment to land before reporting.
         plugin.sched().globalLater(() -> plugin.messages().send(sender, "fixblocks.done", Messages.of(
                 "repaired", String.valueOf(repaired.get()),
+                "recovered", String.valueOf(adopted.get()),
                 "skipped", String.valueOf(skipped.get()))), 40L);
     }
 

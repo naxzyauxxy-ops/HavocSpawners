@@ -5,6 +5,7 @@ import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.config.Settings;
 import dev.havoc.spawners.spawner.BlockKey;
 import dev.havoc.spawners.spawner.ItemSig;
+import dev.havoc.spawners.spawner.LegacyItems;
 import dev.havoc.spawners.spawner.SpawnerBlocks;
 import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.storage.InventoryCodec;
@@ -58,12 +59,7 @@ public final class BlockListener implements Listener {
         BlockKey key = BlockKey.of(block);
 
         if (!plugin.items().isHavocSpawner(item)) {
-            // A vanilla spawner item: adopt it so the block is never left unmanaged.
-            EntityType type = readBlockType(block);
-            SpawnerData adopted = plugin.spawners().create(key, type, null, player, 1);
-            syncBlock(block, adopted);
-            plugin.messages().send(player, "spawner.placed", Messages.of(
-                    "type", adopted.displayType(), "stack", "1"));
+            adoptForeign(block, key, item, player);
             return;
         }
 
@@ -95,6 +91,57 @@ public final class BlockListener implements Listener {
     }
 
     /**
+     * Adopts a spawner item that is not ours - a SmartSpawner item, a vanilla one, a crate reward,
+     * or one minted by an older build of this plugin.
+     * <p>
+     * These carry none of our persistent data. Until now that meant falling straight through to a
+     * hard-coded pig, which is exactly what players saw: every old spawner became a pig spawner the
+     * moment it was placed. {@link LegacyItems} reads the item's block data, foreign persistent data
+     * and finally its name before we resort to the configured fallback - and even then we look at
+     * the block once more a tick later, in case vanilla had not written the item's data yet.
+     */
+    private void adoptForeign(Block block, BlockKey key, ItemStack item, Player player) {
+        LegacyItems.Guess guess = LegacyItems.resolve(item);
+        EntityType type = guess.entityType();
+        Material material = guess.itemMaterial();
+
+        if (type == null && material == null) {
+            type = readBlockType(block);
+        }
+        boolean unknown = type == null && material == null;
+        int stack = Math.max(1, Math.min(plugin.settings().maxStackSize, guess.stackSize()));
+
+        SpawnerData adopted = plugin.spawners().create(key,
+                unknown ? plugin.settings().legacyFallbackType : type, material, player, stack);
+        plugin.storage().queueSave(adopted);
+
+        if (unknown) {
+            // Nothing told us what it is yet. Vanilla applies the item's block-entity data around
+            // placement, so give it a tick and believe the block over our fallback.
+            plugin.sched().regionLater(block.getLocation(), () -> {
+                EntityType late = readBlockType(block);
+                if (late != null && late != adopted.entityType()) {
+                    adopted.entityType(late);
+                    adopted.recompute(plugin.settings(), plugin.upgrades());
+                    plugin.storage().queueSave(adopted);
+                }
+                SpawnerBlocks.apply(block, adopted);
+            }, 1L);
+        } else {
+            syncBlock(block, adopted);
+        }
+
+        if (unknown && plugin.settings().legacyWarnUnknown) {
+            plugin.messages().send(player, "spawner.legacy-unknown", Messages.of(
+                    "type", adopted.displayType()));
+        }
+        plugin.messages().send(player, "spawner.placed", Messages.of(
+                "type", adopted.displayType(),
+                "stack", Numbers.plain(stack),
+                "items", "0"));
+    }
+
+    /**
      * Stamps the spawner's real type onto the block.
      * <p>
      * Applied immediately and again a tick later, because vanilla writes the item's own block-entity
@@ -105,15 +152,17 @@ public final class BlockListener implements Listener {
         plugin.sched().regionLater(block.getLocation(), () -> SpawnerBlocks.apply(block, spawner), 1L);
     }
 
+    /** The mob the block itself claims to hold, or null when it has none. Never guesses. */
     private EntityType readBlockType(Block block) {
-        BlockState state = block.getState(false);
-        if (state instanceof CreatureSpawner creatureSpawner) {
-            EntityType type = creatureSpawner.getSpawnedType();
-            if (type != null) {
-                return type;
+        try {
+            BlockState state = block.getState(false);
+            if (state instanceof CreatureSpawner creatureSpawner) {
+                return creatureSpawner.getSpawnedType();
             }
+        } catch (Throwable ignored) {
+            // An unreadable block state is the same as an empty one.
         }
-        return EntityType.PIG;
+        return null;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -208,6 +257,9 @@ public final class BlockListener implements Listener {
             if (plugin.settings().naturalConvert) {
                 event.setDropItems(false);
                 EntityType type = readBlockType(event.getBlock());
+                if (type == null) {
+                    type = plugin.settings().legacyFallbackType;
+                }
                 deliver(player, List.of(plugin.items().create(type, null, 1, 1, 1)));
             }
             return;

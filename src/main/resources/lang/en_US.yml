@@ -101,6 +101,8 @@ spawner:
   type-changed: "<color:#ffffff>Spawner type changed to <color:#ff2b3d><type></color>.</color>"
   bad-egg: "<color:#ff2b3d>That egg is not a valid spawner type.</color>"
   empty-first: "<color:#ff8a95>Empty the storage before changing the spawner type.</color>"
+  # <type>  - an old or foreign spawner item that would not say what it is
+  legacy-unknown: "<color:#ff8a95>That spawner item is not one of ours and does not record its type, so it was placed as <white><type></white>. Right-click it with a spawn egg to set the correct one.</color>"
 
 # ---------------------------------------------------------------- commands
 list:
@@ -134,8 +136,8 @@ import:
   done: "<color:#ffffff>Import finished: <color:#ff2b3d><imported></color> imported, <color:#ff2b3d><skipped></color> skipped, <color:#ff2b3d><failed></color> failed, <color:#ff2b3d><items></color> items moved.</color>"
 
 fixblocks:
-  # <repaired> <skipped>
-  done: "<color:#ffffff>Repaired <color:#ff2b3d><repaired></color> spawner blocks. <color:#9b9ba1><skipped> were in unloaded chunks - fly near them and run it again.</color></color>"
+  # <repaired> <recovered> <skipped>
+  done: "<color:#ffffff>Repaired <color:#ff2b3d><repaired></color> spawner blocks and recovered <color:#ff2b3d><recovered></color> mis-adopted types. <color:#9b9ba1><skipped> were in unloaded chunks - fly near them and run it again.</color></color>"
 
 clearghosts:
   # <count>
