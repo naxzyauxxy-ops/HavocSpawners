@@ -139,6 +139,9 @@ fixblocks:
   # <repaired> <recovered> <skipped>
   done: "<color:#ffffff>Repaired <color:#ff2b3d><repaired></color> spawner blocks and recovered <color:#ff2b3d><recovered></color> mis-adopted types. <color:#9b9ba1><skipped> were in unloaded chunks - fly near them and run it again.</color></color>"
 
+settype:
+  usage: "<color:#ff8a95>/hs settype (mob|item) [TYPE] <color:#9b9ba1>- look at the spawner first</color></color>"
+
 clearghosts:
   # <count>
   done: "<color:#ffffff>Removed <color:#ff2b3d><count></color> ghost spawners.</color>"

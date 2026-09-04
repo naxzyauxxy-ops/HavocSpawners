@@ -36,7 +36,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.0.9.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.1.0.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -139,6 +139,7 @@ rather than lifetime averages, and `/hs top` ranks the best earners.
 | `/hs reload` | `havocspawners.command.reload` | Reloads every config file |
 | `/hs clearghosts` | `havocspawners.command.reload` | Drops spawners whose world is gone |
 | `/hs fixblocks` | `havocspawners.command.reload` | Repairs spawner blocks showing the wrong mob |
+| `/hs settype mob\|item <TYPE>` | `havocspawners.command.reload` | Forces the type of the spawner you are looking at |
 | `/hs stats` | `havocspawners.command.reload` | Runtime counters |
 
 Aliases: `/havocspawners`, `/hspawners`, `/havoc`, and — for drop-in compatibility with an existing
@@ -204,7 +205,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.0.9.jar
+gradle build        # -> build/libs/HavocSpawners-1.1.0.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -284,15 +285,41 @@ Placement now interrogates the item properly, in descending order of trust:
 Only when all four come back empty does `legacy.unknown-type` apply, and the player is told so they
 can correct it with a spawn egg rather than quietly running a pig farm.
 
+**Item spawners are held to a higher standard than mob spawners.** A material name turns up on a mob
+spawner for entirely innocent reasons — `Contains: Rotten Flesh` in the lore, a loot preview, a
+foreign key holding a menu icon — and reading one of those as the spawner's identity is how a zombie
+spawner came out the other side as an item spawner. So:
+
+- a **material** is believed only from a key that says it holds one (`item`, `material`, `block`,
+  `drop`, `loot`), or from the words directly in front of the word *Spawner* in the item's name —
+  `Bone Block Spawner` is an item spawner, `Zombie Spawner (Bones)` is not;
+- an **entity type** is believed from anywhere, because a mob name on a spawner item is never an
+  accident;
+- **lore is searched for entity types only** — lore describes what a spawner *holds*, not what it is.
+
+Where a name contains both — `Rabbit Spawner`, with `RABBIT` being an entity *and* an item — the
+entity wins.
+
 ```yaml
 legacy:
   unknown-type: PIG      # what an unidentifiable spawner item becomes
   warn-on-unknown: true  # tell the player when we had to guess
 ```
 
-Spawners **already placed as pigs** by an earlier build are recoverable too: `/hs fixblocks` now
-treats a spawner stored as the fallback type whose *block* names something else as evidence, and
-adopts the block's type back into the database. It reports those separately as *recovered*.
+Spawners **already mis-adopted** by an earlier build are recoverable: `/hs fixblocks` treats the block
+as evidence in the two cases where it can be trusted — a spawner stored as the fallback type, and a
+spawner stored as an *item* spawner whose block still shows a mob — and adopts the block's type back
+into the database rather than overwriting it. Those are reported separately as *recovered*.
+
+Anything that survives both passes can be corrected by hand without breaking it:
+
+```
+/hs settype mob ZOMBIE        # look at the spawner first
+/hs settype item BONE_BLOCK
+```
+
+Unlike the spawn egg, `settype` does not require the storage to be empty — the contents of a
+mis-typed spawner are exactly what you are trying not to lose.
 
 ---
 

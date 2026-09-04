@@ -12,9 +12,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -30,12 +28,18 @@ import java.util.Map;
  * descending order of trust:
  * <ol>
  *   <li>the item's own block-entity data ({@code BlockStateMeta}) - where vanilla keeps it;</li>
- *   <li>any foreign persistent-data key whose value names an entity type or a material - this is
- *       namespace-agnostic on purpose, so it works for SmartSpawner and for plugins we have never
- *       seen;</li>
- *   <li>the display name and lore, normalised out of small-caps and legacy colour codes.</li>
+ *   <li>any foreign persistent-data key whose value names an entity type - this is namespace-agnostic
+ *       on purpose, so it works for SmartSpawner and for plugins we have never seen;</li>
+ *   <li>the display name, and then the lore, normalised out of small-caps and legacy colour codes.</li>
  * </ol>
  * Only when all three come back empty does the caller fall back to a configured default.
+ * <p>
+ * <b>Item spawners are held to a higher standard than mob spawners.</b> A material name can appear on
+ * a mob spawner for entirely innocent reasons - "Contains: Rotten Flesh" in the lore, a loot preview,
+ * a foreign key holding an icon - and reading one of those as the spawner's identity is how a zombie
+ * spawner became a bone-block spawner. So a material is only accepted from a key that says it holds
+ * one, or from the words immediately in front of "SPAWNER" in the item's name. An entity type is
+ * accepted from anywhere, because a mob name on a spawner item is never an accident.
  */
 public final class LegacyItems {
 
@@ -111,8 +115,10 @@ public final class LegacyItems {
             }
         }
 
-        // 2. Foreign persistent data, scanned by value rather than by key name so we do not have to
-        //    keep a list of other plugins' namespaces up to date.
+        // 2. Foreign persistent data. Values are matched against entity types freely, because an
+        //    entity name in a spawner item's data is never a coincidence. A *material* is only
+        //    believed when the key it sits under says it is one - otherwise any plugin that happened
+        //    to store "STONE" or "BONE" against a mob spawner would turn it into an item spawner.
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         EntityType entity = null;
         Material material = null;
@@ -136,7 +142,7 @@ public final class LegacyItems {
                     }
                     continue;
                 }
-                if (material == null) {
+                if (material == null && namesAMaterial(name)) {
                     Material block = materialOf(value);
                     if (block != null) {
                         material = block;
@@ -153,84 +159,145 @@ public final class LegacyItems {
             return new Guess(null, material, stack, "item data");
         }
 
-        // 3. The name and lore. Least trustworthy, so it runs last - but it is what saves an item
-        //    whose only remaining clue is that it says "Zombie Spawner" on the tin.
-        List<String> text = new ArrayList<>();
-        addText(text, meta.hasDisplayName() ? meta.displayName() : null);
-        if (meta.hasLore() && meta.lore() != null) {
-            for (Component line : meta.lore()) {
-                addText(text, line);
-            }
+        // 3. The name, then the lore. Least trustworthy, so it runs last - but it is what saves an
+        //    item whose only remaining clue is that it says "Zombie Spawner" on the tin.
+        //
+        //    The two are NOT treated alike. A display name is about the item; lore is about its
+        //    contents, its stack count, how to use it. Reading a material out of lore is how
+        //    "Contains: Rotten Flesh" on a zombie spawner turned it into an item spawner, so lore is
+        //    searched for entity types only.
+        String name = null;
+        if (meta.hasDisplayName()) {
+            name = plain(meta.displayName());
         }
-        for (String line : text) {
-            Guess guess = fromText(line, stack);
+        if (name != null) {
+            Guess guess = fromName(name, stack);
             if (guess.found()) {
                 return guess;
+            }
+        }
+        if (meta.hasLore() && meta.lore() != null) {
+            for (Component line : meta.lore()) {
+                EntityType type = entityInText(plain(line));
+                if (type != null) {
+                    return new Guess(type, null, stack, "item lore");
+                }
             }
         }
         return new Guess(null, null, stack, "unknown");
     }
 
-    private static void addText(List<String> into, Component component) {
+    /** True when a persistent-data key is claiming to hold a material rather than anything else. */
+    private static boolean namesAMaterial(String key) {
+        return key.contains("item") || key.contains("material") || key.contains("mat")
+                || key.contains("block") || key.contains("drop") || key.contains("loot");
+    }
+
+    private static String plain(Component component) {
         if (component == null) {
-            return;
+            return null;
         }
         try {
-            String plain = PlainTextComponentSerializer.plainText().serialize(component);
-            if (plain != null && !plain.isBlank()) {
-                into.add(plain);
-            }
-        } catch (Throwable ignored) {
+            String text = PlainTextComponentSerializer.plainText().serialize(component);
+            return text == null || text.isBlank() ? null : text;
+        } catch (Throwable ex) {
             // A component we cannot flatten is simply not a clue.
+            return null;
         }
     }
 
-    /** Pulls a type out of a line like "&c§lZᴏᴍʙɪᴇ Sᴘᴀᴡɴᴇʀ &7(x4)". */
-    static Guess fromText(String raw, int stack) {
+    /**
+     * Reads a display name like "&c§lZᴏᴍʙɪᴇ Sᴘᴀᴡɴᴇʀ &7(x4)".
+     * <p>
+     * Entity types are looked for anywhere in the name. A material has to earn it: only the words
+     * immediately in front of the word "SPAWNER" count, so "Bone Block Spawner" is an item spawner
+     * while "Zombie Spawner &7(Bones)" is not.
+     */
+    static Guess fromName(String raw, int stack) {
         String cleaned = normalise(raw);
         if (cleaned.isEmpty()) {
             return Guess.EMPTY;
         }
-        // "SPAWNER" appears in every one of these names and never carries information.
-        String stripped = cleaned.replace("SPAWNER", " ").trim();
-
-        Guess whole = match(stripped.replace(' ', '_'), stack);
-        if (whole.found()) {
-            return whole;
-        }
-        String[] words = stripped.split("\\s+");
-        // Longest run of words first, so "CAVE SPIDER" beats "SPIDER".
-        for (int size = words.length; size >= 1; size--) {
-            for (int start = 0; start + size <= words.length; start++) {
-                StringBuilder builder = new StringBuilder();
-                for (int i = start; i < start + size; i++) {
-                    if (words[i].isEmpty()) {
-                        continue;
-                    }
-                    if (!builder.isEmpty()) {
-                        builder.append('_');
-                    }
-                    builder.append(words[i]);
-                }
-                Guess guess = match(builder.toString(), stack);
-                if (guess.found()) {
-                    return guess;
-                }
-            }
-        }
-        return Guess.EMPTY;
-    }
-
-    private static Guess match(String token, int stack) {
-        EntityType entity = entityOf(token);
+        EntityType entity = entityIn(words(cleaned.replace("SPAWNER", " ")));
         if (entity != null) {
             return new Guess(entity, null, stack, "item name");
         }
-        Material material = materialOf(token);
+        Material material = materialBeforeSpawner(cleaned);
         if (material != null) {
             return new Guess(null, material, stack, "item name");
         }
         return Guess.EMPTY;
+    }
+
+    /** Entity types only - used for lore, where a material would be describing the contents. */
+    static EntityType entityInText(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String cleaned = normalise(raw);
+        return cleaned.isEmpty() ? null : entityIn(words(cleaned.replace("SPAWNER", " ")));
+    }
+
+    private static String[] words(String cleaned) {
+        String trimmed = cleaned.trim();
+        return trimmed.isEmpty() ? new String[0] : trimmed.split("\\s+");
+    }
+
+    /** Longest run of words first, so "CAVE SPIDER" beats "SPIDER". */
+    private static EntityType entityIn(String[] words) {
+        for (int size = words.length; size >= 1; size--) {
+            for (int start = 0; start + size <= words.length; start++) {
+                EntityType type = entityOf(join(words, start, size));
+                if (type != null) {
+                    return type;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The material named by the words directly in front of "SPAWNER", longest run first.
+     * <p>
+     * Anchoring to that word is the whole point: it is what separates a name that says the item
+     * <em>is</em> a bone block spawner from one that merely mentions bones.
+     */
+    private static Material materialBeforeSpawner(String cleaned) {
+        String[] all = words(cleaned);
+        int end = -1;
+        for (int i = all.length - 1; i >= 0; i--) {
+            if (all[i].equals("SPAWNER")) {
+                end = i;
+                break;
+            }
+        }
+        if (end <= 0) {
+            return null;
+        }
+        // A material name is at most three words ("light blue stained glass" is four, but those are
+        // not spawner types anybody ships).
+        int limit = Math.min(3, end);
+        for (int size = limit; size >= 1; size--) {
+            Material material = materialOf(join(all, end - size, size));
+            if (material != null) {
+                return material;
+            }
+        }
+        return null;
+    }
+
+    private static String join(String[] words, int start, int size) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = start; i < start + size && i < words.length; i++) {
+            if (words[i].isEmpty()) {
+                continue;
+            }
+            if (!builder.isEmpty()) {
+                builder.append('_');
+            }
+            builder.append(words[i]);
+        }
+        return builder.toString();
     }
 
     /**

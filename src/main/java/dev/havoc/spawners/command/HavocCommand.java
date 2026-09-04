@@ -28,7 +28,7 @@ public final class HavocCommand implements TabExecutor {
 
     private static final List<String> SUBCOMMANDS = List.of(
             "help", "reload", "give", "list", "near", "prices", "top", "import", "info", "clearghosts",
-            "stats", "fixblocks");
+            "stats", "fixblocks", "settype");
 
     private final HavocSpawners plugin;
 
@@ -54,6 +54,7 @@ public final class HavocCommand implements TabExecutor {
             case "info" -> info(sender);
             case "clearghosts" -> clearGhosts(sender);
             case "fixblocks" -> fixBlocks(sender);
+            case "settype" -> setType(sender, args);
             case "stats" -> stats(sender);
             default -> help(sender);
         }
@@ -79,6 +80,7 @@ public final class HavocCommand implements TabExecutor {
             line(sender, "/hs reload", "Reload configuration");
             line(sender, "/hs clearghosts", "Remove spawners whose world is gone");
             line(sender, "/hs fixblocks", "Repair spawner blocks showing the wrong mob");
+            line(sender, "/hs settype (mob|item) [TYPE]", "Force the type of the spawner you are looking at");
             line(sender, "/hs stats", "Plugin runtime statistics");
         }
     }
@@ -292,6 +294,61 @@ public final class HavocCommand implements TabExecutor {
         plugin.spawnerUi().openMain(player, spawner);
     }
 
+    /**
+     * Forces the type of the spawner being looked at.
+     * <p>
+     * A repair tool, not a gameplay one - it is how an operator corrects a spawner that was adopted
+     * as the wrong type, without having to break it or find the right spawn egg. Unlike the egg it
+     * does not require the storage to be empty, because the contents of a mis-typed spawner are
+     * exactly what the player is trying not to lose.
+     */
+    private void setType(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("havocspawners.command.reload")) {
+            plugin.messages().send(sender, "no-permission");
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            plugin.messages().send(sender, "players-only");
+            return;
+        }
+        if (args.length < 3) {
+            plugin.messages().send(sender, "settype.usage");
+            return;
+        }
+        var block = player.getTargetBlockExact(8);
+        SpawnerData spawner = block == null ? null : plugin.spawners().at(BlockKey.of(block));
+        if (spawner == null) {
+            plugin.messages().send(player, "info.none");
+            return;
+        }
+        String kind = args[1].toLowerCase(Locale.ROOT);
+        String value = args[2];
+        if (isItemToken(kind)) {
+            org.bukkit.Material material = org.bukkit.Material.matchMaterial(value.toUpperCase(Locale.ROOT));
+            if (material == null) {
+                plugin.messages().send(sender, "give.bad-material", Messages.of("value", value));
+                return;
+            }
+            spawner.itemMaterial(material);
+        } else if (isMobToken(kind)) {
+            org.bukkit.entity.EntityType type;
+            try {
+                type = org.bukkit.entity.EntityType.valueOf(value.toUpperCase(Locale.ROOT).replace(' ', '_'));
+            } catch (IllegalArgumentException ex) {
+                plugin.messages().send(sender, "give.bad-type", Messages.of("value", value));
+                return;
+            }
+            spawner.entityType(type);
+        } else {
+            plugin.messages().send(sender, "settype.usage");
+            return;
+        }
+        spawner.recompute(plugin.settings(), plugin.upgrades());
+        plugin.storage().queueSave(spawner);
+        dev.havoc.spawners.spawner.SpawnerBlocks.apply(block, spawner);
+        plugin.messages().send(sender, "spawner.type-changed", Messages.of("type", spawner.displayType()));
+    }
+
     private void clearGhosts(CommandSender sender) {
         if (!sender.hasPermission("havocspawners.command.reload")) {
             plugin.messages().send(sender, "no-permission");
@@ -332,10 +389,13 @@ public final class HavocCommand implements TabExecutor {
                 if (!dev.havoc.spawners.spawner.SpawnerBlocks.mismatched(block, spawner)) {
                     return;
                 }
-                // A spawner sitting on the fallback type while the block itself names something else
-                // is one that was adopted from a foreign item before we could read it properly.
-                // The block is the surviving evidence, so believe it rather than overwriting it.
-                if (!spawner.isItemSpawner() && spawner.entityType() == plugin.settings().legacyFallbackType) {
+                // Two shapes of bad adoption are recoverable, and in both the block is the surviving
+                // evidence, so we believe it rather than overwriting it:
+                //   - a spawner stored as the fallback type (a pig that should not be one);
+                //   - a spawner stored as an *item* spawner while its block still shows a mob.
+                boolean fallbackPig = !spawner.isItemSpawner()
+                        && spawner.entityType() == plugin.settings().legacyFallbackType;
+                if (fallbackPig || spawner.isItemSpawner()) {
                     var real = dev.havoc.spawners.spawner.SpawnerBlocks.blockType(block);
                     if (real != null && real != spawner.entityType()) {
                         spawner.entityType(real);
@@ -448,6 +508,27 @@ public final class HavocCommand implements TabExecutor {
         }
         if (sub.equals("near") && args.length == 2) {
             return filter(Arrays.asList("16", "32", "64", "128"), args[1]);
+        }
+        if (sub.equals("settype")) {
+            if (args.length == 2) {
+                return filter(List.of("mob", "item"), args[1]);
+            }
+            if (args.length == 3) {
+                String kind = args[1].toLowerCase(Locale.ROOT);
+                List<String> names = new ArrayList<>();
+                if (isItemToken(kind)) {
+                    for (org.bukkit.Material material : org.bukkit.Material.values()) {
+                        if (material.isItem()) {
+                            names.add(material.name());
+                        }
+                    }
+                } else {
+                    for (org.bukkit.entity.EntityType type : org.bukkit.entity.EntityType.values()) {
+                        names.add(type.name());
+                    }
+                }
+                return filter(names, args[2]);
+            }
         }
         return out;
     }
