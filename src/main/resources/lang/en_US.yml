@@ -147,6 +147,13 @@ settype:
 inspect:
   not-a-spawner: "<color:#ff8a95>Hold a spawner item to inspect it.</color>"
 
+fixitems:
+  nobody: "<color:#ff8a95>Nobody is online to sweep.</color>"
+  # <converted> <cleared> <skipped> <players>
+  done: "<color:#ffffff>Updated <color:#ff2b3d><converted></color> old spawner items across <color:#ff2b3d><players></color> players. <color:#9b9ba1><cleared> cleared, <skipped> left alone.</color></color>"
+  # <converted>  - shown to the player themselves on login
+  updated: "<color:#ffffff>Updated <color:#ff2b3d><converted></color> old spawner items in your inventory.</color>"
+
 clearghosts:
   # <count>
   done: "<color:#ffffff>Removed <color:#ff2b3d><count></color> ghost spawners.</color>"

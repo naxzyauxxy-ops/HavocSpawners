@@ -32,6 +32,33 @@ public final class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         plugin.spawners().tracker().update(event.getPlayer());
+        convertOldItems(event.getPlayer());
+    }
+
+    /**
+     * Rewrites any old spawner items the player is carrying, once, on login.
+     * <p>
+     * The inventory of an offline player is not reachable through the API, so sweeping online players
+     * alone would always miss most of a server's stock. Doing it at login instead covers every player
+     * the next time they play, without touching player data files.
+     * <p>
+     * Delayed a second so it lands after anything else that restores an inventory on join, and run on
+     * the player's own region so it stays safe under Folia.
+     */
+    private void convertOldItems(org.bukkit.entity.Player player) {
+        if (!plugin.settings().legacyConvertOnJoin) {
+            return;
+        }
+        plugin.sched().regionLater(player.getLocation(), () -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            var result = plugin.itemMigrator().convert(player);
+            if (result.converted() > 0) {
+                plugin.messages().send(player, "fixitems.updated", dev.havoc.spawners.config.Messages.of(
+                        "converted", String.valueOf(result.converted())));
+            }
+        }, 20L);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

@@ -54,6 +54,7 @@ public final class HavocSpawners extends JavaPlugin {
     private SqlStorage storage;
     private SpawnerManager spawners;
     private SpawnerItems items;
+    private dev.havoc.spawners.migrate.ItemMigrator itemMigrator;
 
     private LootRegistry lootRegistry;
     private LootEngine lootEngine;
@@ -106,6 +107,7 @@ public final class HavocSpawners extends JavaPlugin {
         this.sell = new SellService(this);
 
         this.items = new SpawnerItems(this);
+        this.itemMigrator = new dev.havoc.spawners.migrate.ItemMigrator(this);
         this.analytics = new Analytics(this);
         this.spawners = new SpawnerManager(this);
         this.storage = new SqlStorage(this);
@@ -238,6 +240,11 @@ public final class HavocSpawners extends JavaPlugin {
 
     public SpawnerItems items() {
         return items;
+    }
+
+    /** Rewrites old, foreign spawner items into ours. */
+    public dev.havoc.spawners.migrate.ItemMigrator itemMigrator() {
+        return itemMigrator;
     }
 
     public LootRegistry loot() {

@@ -150,6 +150,9 @@ public final class Settings {
     // legacy / foreign spawner items
     public EntityType legacyFallbackType = EntityType.PIG;
     public boolean legacyWarnUnknown = true;
+    public boolean legacyConvertOnJoin = true;
+    public boolean legacyConvertShulkers = true;
+    public boolean legacyRemoveUnidentified;
 
     public static Settings load(HavocSpawners plugin) {
         FileConfiguration c = plugin.getConfig();
@@ -277,6 +280,9 @@ public final class Settings {
 
         s.legacyFallbackType = entityOf(c.getString("legacy.unknown-type", "PIG"), EntityType.PIG);
         s.legacyWarnUnknown = c.getBoolean("legacy.warn-on-unknown", true);
+        s.legacyConvertOnJoin = c.getBoolean("legacy.convert-on-join", true);
+        s.legacyConvertShulkers = c.getBoolean("legacy.convert-inside-shulkers", true);
+        s.legacyRemoveUnidentified = c.getBoolean("legacy.remove-unidentified", false);
 
         if (s.requiredTools.isEmpty()) {
             List<Material> fallback = List.of(Material.IRON_PICKAXE, Material.GOLDEN_PICKAXE,

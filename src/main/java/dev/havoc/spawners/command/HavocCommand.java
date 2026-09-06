@@ -28,7 +28,7 @@ public final class HavocCommand implements TabExecutor {
 
     private static final List<String> SUBCOMMANDS = List.of(
             "help", "reload", "give", "list", "near", "prices", "top", "import", "info", "clearghosts",
-            "stats", "fixblocks", "settype", "inspect");
+            "stats", "fixblocks", "fixitems", "settype", "inspect");
 
     private final HavocSpawners plugin;
 
@@ -55,6 +55,7 @@ public final class HavocCommand implements TabExecutor {
             case "clearghosts" -> clearGhosts(sender);
             case "fixblocks" -> fixBlocks(sender);
             case "settype" -> setType(sender, args);
+            case "fixitems" -> fixItems(sender, args);
             case "inspect" -> inspect(sender);
             case "stats" -> stats(sender);
             default -> help(sender);
@@ -81,6 +82,7 @@ public final class HavocCommand implements TabExecutor {
             line(sender, "/hs reload", "Reload configuration");
             line(sender, "/hs clearghosts", "Remove spawners whose world is gone");
             line(sender, "/hs fixblocks", "Repair spawner blocks showing the wrong mob");
+            line(sender, "/hs fixitems [player]", "Update old spawner items in inventories and ender chests");
             line(sender, "/hs settype (mob|item) [TYPE]", "Force the type of the spawner you are looking at");
             line(sender, "/hs inspect", "Show what the spawner item in your hand really contains");
             line(sender, "/hs stats", "Plugin runtime statistics");
@@ -421,6 +423,61 @@ public final class HavocCommand implements TabExecutor {
                 + " (from " + guess.source() + ")");
     }
 
+    /**
+     * Sweeps old spawner items out of players' inventories, ender chests and carried shulker boxes.
+     * <p>
+     * {@code /hs fixitems} does everyone online; {@code /hs fixitems <player>} does one. Players who
+     * are offline are covered by the same sweep running at login, so no player data file is ever
+     * opened by hand.
+     */
+    private void fixItems(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("havocspawners.command.reload")) {
+            plugin.messages().send(sender, "no-permission");
+            return;
+        }
+        List<Player> targets = new ArrayList<>();
+        if (args.length >= 2 && !args[1].equalsIgnoreCase("all")) {
+            Player target = Bukkit.getPlayerExact(args[1]);
+            if (target == null) {
+                plugin.messages().send(sender, "player-not-found", Messages.of("player", args[1]));
+                return;
+            }
+            targets.add(target);
+        } else {
+            targets.addAll(Bukkit.getOnlinePlayers());
+        }
+        if (targets.isEmpty()) {
+            plugin.messages().send(sender, "fixitems.nobody");
+            return;
+        }
+
+        java.util.concurrent.atomic.AtomicInteger converted = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger cleared = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger skipped = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger players = new java.util.concurrent.atomic.AtomicInteger();
+
+        for (Player target : targets) {
+            // Each player's inventory belongs to that player's region thread.
+            plugin.sched().region(target.getLocation(), () -> {
+                if (!target.isOnline()) {
+                    return;
+                }
+                var result = plugin.itemMigrator().convert(target);
+                converted.addAndGet(result.converted());
+                cleared.addAndGet(result.cleared());
+                skipped.addAndGet(result.skipped());
+                if (result.touchedAnything()) {
+                    players.incrementAndGet();
+                }
+            });
+        }
+        plugin.sched().globalLater(() -> plugin.messages().send(sender, "fixitems.done", Messages.of(
+                "converted", String.valueOf(converted.get()),
+                "cleared", String.valueOf(cleared.get()),
+                "skipped", String.valueOf(skipped.get()),
+                "players", String.valueOf(players.get()))), 40L);
+    }
+
     private void clearGhosts(CommandSender sender) {
         if (!sender.hasPermission("havocspawners.command.reload")) {
             plugin.messages().send(sender, "no-permission");
@@ -580,6 +637,14 @@ public final class HavocCommand implements TabExecutor {
         }
         if (sub.equals("near") && args.length == 2) {
             return filter(Arrays.asList("16", "32", "64", "128"), args[1]);
+        }
+        if (sub.equals("fixitems") && args.length == 2) {
+            List<String> names = new ArrayList<>();
+            names.add("all");
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                names.add(online.getName());
+            }
+            return filter(names, args[1]);
         }
         if (sub.equals("settype")) {
             if (args.length == 2) {

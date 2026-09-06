@@ -265,3 +265,22 @@ legacy:
   # Tell the player when a spawner could not be identified, so a wrong type gets
   # reported instead of quietly becoming a pig farm.
   warn-on-unknown: true
+
+  # Sweep old spawner items out of a player's inventory and ender chest when they
+  # log in, rewriting each one as the equivalent HavocSpawners item. This is how
+  # spawners already sitting in ender chests get fixed - an offline player's
+  # inventory cannot be reached any other way, so login is the moment to do it.
+  #
+  # /hs fixitems does the same sweep on demand for everyone online.
+  convert-on-join: true
+
+  # Also look inside shulker boxes the player is carrying. Players hoard spawners
+  # in shulkers, so leaving these out misses most of them on a busy server.
+  convert-inside-shulkers: true
+
+  # Delete old spawner items that cannot be identified at all.
+  #
+  # OFF by default, and think before turning it on: an unidentifiable spawner is
+  # still somebody's property. With this false they are left untouched and simply
+  # reported, so you can look at one with /hs inspect first.
+  remove-unidentified: false

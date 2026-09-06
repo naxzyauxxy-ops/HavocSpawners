@@ -36,7 +36,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.1.1.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.2.0.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -139,6 +139,7 @@ rather than lifetime averages, and `/hs top` ranks the best earners.
 | `/hs reload` | `havocspawners.command.reload` | Reloads every config file |
 | `/hs clearghosts` | `havocspawners.command.reload` | Drops spawners whose world is gone |
 | `/hs fixblocks` | `havocspawners.command.reload` | Repairs spawner blocks showing the wrong mob |
+| `/hs fixitems [player]` | `havocspawners.command.reload` | Rewrites old spawner items in inventories, ender chests and shulkers |
 | `/hs settype mob\|item <TYPE>` | `havocspawners.command.reload` | Forces the type of the spawner you are looking at |
 | `/hs inspect` | `havocspawners.command.reload` | Dumps what the held spawner item really contains |
 | `/hs stats` | `havocspawners.command.reload` | Runtime counters |
@@ -206,7 +207,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.1.1.jar
+gradle build        # -> build/libs/HavocSpawners-1.2.0.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -314,6 +315,36 @@ That token is a declaration, and once it is present there is nothing left to con
 name, and a declared item spawner is never turned back into a mob spawner by a stray mob name. If it
 declares itself but never says which material, it says so in chat and points at `/hs settype` rather
 than silently becoming a pig.
+
+### Clearing out the old items entirely
+
+Identifying a foreign item at placement fixes it the moment it is placed — it does nothing for the
+hundreds already sitting in ender chests, and each of those is a support ticket waiting to happen. So
+they get rewritten in place instead: an old spawner item is replaced, in its own slot, by the
+equivalent HavocSpawners item of the same type and count.
+
+Two things run that sweep:
+
+- **On login**, for the joining player's inventory, ender chest and any shulker boxes they carry
+  (`legacy.convert-on-join`). This is the one that matters: an offline player's inventory cannot be
+  reached through the API at all, so login is the only moment their stock can be fixed — no player
+  data files are ever opened by hand.
+- **`/hs fixitems`** on demand, for everyone online at once, or `/hs fixitems <player>` for one.
+
+```yaml
+legacy:
+  convert-on-join: true         # sweep each player as they log in
+  convert-inside-shulkers: true # players hoard spawners in shulkers
+  remove-unidentified: false    # see below
+```
+
+It is a **conversion, not a deletion**. An item that cannot be identified at all is left exactly
+where it is and reported, because an unidentifiable spawner is still somebody's property — look at
+one with `/hs inspect` before deciding. `remove-unidentified: true` deletes them instead; that one is
+off by default deliberately.
+
+The sweep runs on each player's own region thread, so it is Folia-safe, and it is delayed a second
+after login so it lands after anything else that restores an inventory on join.
 
 ### When it still gets it wrong
 
