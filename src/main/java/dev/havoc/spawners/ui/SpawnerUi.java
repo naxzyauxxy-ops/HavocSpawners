@@ -41,6 +41,10 @@ public final class SpawnerUi {
             plugin.bedrockUi().openMain(player, spawner);
             return;
         }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openMain(player, spawner);
+            return;
+        }
         List<DialogBody> body = new ArrayList<>();
         body.add(Ui.icon(iconStack(spawner)));
         body.add(Ui.text("<color:" + Ui.ACCENT + "><bold>" + spawner.displayType() + "</bold></color>"
@@ -96,8 +100,60 @@ public final class SpawnerUi {
                     "Production and earnings history", 100, p -> openAnalytics(p, spawner)));
         }
 
+        buttons.add(Ui.button(spawner.stopped()
+                        ? "<color:" + Ui.GOOD + ">▶ Turn on</color>"
+                        : "<color:" + Ui.BAD + ">⏸ Turn off</color>",
+                spawner.stopped()
+                        ? "Start producing again - nothing already stored is lost"
+                        : "Stop producing. Storage is kept, and you can turn it back on any time",
+                100, p -> {
+                    toggleRunning(p, spawner);
+                    openMain(p, spawner);
+                }));
+        if (plugin.settings().uiAllowPlayerChoice) {
+            buttons.add(Ui.button("<color:" + Ui.FAINT + ">▦ Menu style</color>",
+                    "Currently " + plugin.uiModes().modeFor(player).display()
+                            + " - click for the other one", 100,
+                    p -> switchMode(p, spawner)));
+        }
+
         DialogBase base = Ui.base("Havoc Spawner", body, List.of(), true);
         player.showDialog(Ui.multi(base, buttons, exitButton(), 2));
+    }
+
+    /**
+     * Pauses or resumes the spawner.
+     * <p>
+     * A stopped spawner keeps everything it has already produced and simply stops simulating, so this
+     * is the switch for "stop filling up while I deal with it", not a destructive action.
+     */
+    void toggleRunning(Player player, SpawnerData spawner) {
+        boolean stopping = !spawner.stopped();
+        spawner.stopped(stopping);
+        if (!stopping) {
+            // Resuming: restart the clock, so a spawner paused for a week does not immediately pay
+            // out a week of catch-up cycles.
+            spawner.lastSpawnMillis(System.currentTimeMillis());
+        }
+        plugin.storage().queueSave(spawner);
+        plugin.messages().send(player, stopping ? "spawner.stopped" : "spawner.resumed");
+    }
+
+    /** Flips this player between the dialog and chest presentations, then redraws where they were. */
+    void switchMode(Player player, SpawnerData spawner) {
+        if (!plugin.settings().uiAllowPlayerChoice) {
+            plugin.messages().send(player, "ui.locked", Messages.of(
+                    "mode", plugin.settings().uiMode.display()));
+            return;
+        }
+        UiMode next = plugin.uiModes().modeFor(player) == UiMode.MODERN ? UiMode.DIALOG : UiMode.MODERN;
+        plugin.uiModes().choose(player, next);
+        plugin.uiModes().save();
+        plugin.messages().send(player, "ui.changed", Messages.of("mode", next.display()));
+        // Close whichever screen is up before drawing the other kind, or both end up on screen.
+        player.closeDialog();
+        player.closeInventory();
+        openMain(player, spawner);
     }
 
     String statusLine(SpawnerData spawner) {
@@ -138,6 +194,10 @@ public final class SpawnerUi {
     public void openStorage(Player player, SpawnerData spawner, int page) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openStorage(player, spawner, page);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openStorage(player, spawner, page);
             return;
         }
         List<Map.Entry<ItemSig, Long>> entries = spawner.storage().orderedEntries();
@@ -211,6 +271,10 @@ public final class SpawnerUi {
             plugin.bedrockUi().openItemActions(player, spawner, sig);
             return;
         }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openItemActions(player, spawner, sig);
+            return;
+        }
         long amount = spawner.storage().countOf(sig);
         double unit = plugin.prices().priceOf(sig.template(), plugin.settings());
         String name = SpawnerItems.pretty(sig.material().name());
@@ -233,18 +297,9 @@ public final class SpawnerUi {
         buttons.add(Ui.button("<color:" + Ui.ACCENT + ">Fill my inventory</color>", null, 130,
                 p -> withdraw(p, spawner, sig, sig.maxStack() * 36)));
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drop all on ground</color>",
-                "Throws every " + name + " out where you are looking", 130, p -> {
-                    if (plugin.dropService().isRunning(spawner)) {
-                        plugin.messages().send(p, "bulk-drop.busy");
-                        return;
-                    }
-                    // Stay on screen; the item is gone afterwards, so land back on storage.
-                    boolean started = plugin.dropService().dropItemToGround(p, spawner, sig,
-                            () -> reopenStorage(p, spawner, 0));
-                    if (!started) {
-                        plugin.messages().send(p, "bulk-drop.nothing");
-                    }
-                }));
+                "Throws every " + name + " out where you are looking", 130,
+                // Stay on screen; the item is gone afterwards, so land back on storage.
+                p -> dropItemOnGround(p, spawner, sig, () -> reopenStorage(p, spawner, 0))));
         if (unit > 0.0D && plugin.settings().economyEnabled) {
             buttons.add(Ui.button("<color:" + Ui.GOOD + ">Sell all " + name + "</color>", null, 130,
                     p -> sellOne(p, spawner, sig)));
@@ -254,19 +309,13 @@ public final class SpawnerUi {
                         : "<color:" + Ui.BAD + ">Filter out</color>",
                 "Filtered drops are never stored", 130,
                 p -> {
-                    if (!spawner.filtered().remove(sig.material())) {
-                        spawner.filtered().add(sig.material());
-                    }
-                    spawner.markDirty();
-                    plugin.storage().queueSave(spawner);
+                    toggleFilter(spawner, sig.material());
                     openItemActions(p, spawner, sig);
                 }));
         buttons.add(Ui.button("<color:" + Ui.INK + ">Sort to top</color>",
                 "Show this item first in storage", 130,
                 p -> {
-                    spawner.preferredSort(sig.material());
-                    spawner.storage().sortPreferring(sig.material());
-                    plugin.storage().queueSave(spawner);
+                    sortToTop(spawner, sig.material());
                     openStorage(p, spawner, 0);
                 }));
 
@@ -274,6 +323,64 @@ public final class SpawnerUi {
         player.showDialog(Ui.multi(base, buttons,
                 Ui.button("<color:" + Ui.FAINT + ">← Storage</color>", null, 90,
                         p -> openStorage(p, spawner, 0)), 2));
+    }
+
+    /**
+     * Throws every unit of one item out, then runs {@code onFinish}.
+     * <p>
+     * Shared by both presentations so the busy check and the "nothing to drop" message cannot end up
+     * worded differently in the chest GUI than in the dialog.
+     */
+    void dropItemOnGround(Player player, SpawnerData spawner, ItemSig sig, Runnable onFinish) {
+        if (plugin.dropService().isRunning(spawner)) {
+            plugin.messages().send(player, "bulk-drop.busy");
+            return;
+        }
+        if (!plugin.dropService().dropItemToGround(player, spawner, sig, onFinish)) {
+            plugin.messages().send(player, "bulk-drop.nothing");
+        }
+    }
+
+    /** Adds or removes a material from the discard list. */
+    void toggleFilter(SpawnerData spawner, Material material) {
+        if (!spawner.filtered().remove(material)) {
+            spawner.filtered().add(material);
+        }
+        spawner.markDirty();
+        plugin.storage().queueSave(spawner);
+    }
+
+    void clearFilters(SpawnerData spawner) {
+        spawner.filtered().clear();
+        spawner.markDirty();
+        plugin.storage().queueSave(spawner);
+    }
+
+    void sortToTop(SpawnerData spawner, Material material) {
+        spawner.preferredSort(material);
+        spawner.storage().sortPreferring(material);
+        plugin.storage().queueSave(spawner);
+    }
+
+    /** Everything worth offering as a filter: what is stored, what is already filtered, what drops. */
+    List<Material> filterCandidates(SpawnerData spawner) {
+        List<Material> candidates = new ArrayList<>();
+        for (Map.Entry<ItemSig, Long> entry : spawner.storage().orderedEntries()) {
+            if (!candidates.contains(entry.getKey().material())) {
+                candidates.add(entry.getKey().material());
+            }
+        }
+        for (Material material : spawner.filtered()) {
+            if (!candidates.contains(material)) {
+                candidates.add(material);
+            }
+        }
+        for (var entry : plugin.loot().tableFor(spawner).entries()) {
+            if (!candidates.contains(entry.material())) {
+                candidates.add(entry.material());
+            }
+        }
+        return candidates;
     }
 
     void withdraw(Player player, SpawnerData spawner, ItemSig sig, long maxAmount) {
@@ -343,6 +450,10 @@ public final class SpawnerUi {
     public void openBulkDrop(Player player, SpawnerData spawner) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openBulkDrop(player, spawner);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openBulkDrop(player, spawner);
             return;
         }
         if (!player.hasPermission("havocspawners.bulkdrop")) {
@@ -455,7 +566,9 @@ public final class SpawnerUi {
 
     void runBulk(Player player, SpawnerData spawner, int firstPage, int lastPage,
                          boolean toInventory) {
+        // Either presentation could be on screen; closing the one that is not is a no-op.
         player.closeDialog();
+        player.closeInventory();
         if (plugin.dropService().isRunning(spawner)) {
             plugin.messages().send(player, "bulk-drop.busy");
             return;
@@ -474,6 +587,10 @@ public final class SpawnerUi {
     public void openSell(Player player, SpawnerData spawner) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openSell(player, spawner);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openSell(player, spawner);
             return;
         }
         if (!player.hasPermission("havocspawners.sell")) {
@@ -518,19 +635,24 @@ public final class SpawnerUi {
         DialogBase base = Ui.base("Confirm sale", body, List.of(), false);
         ActionButton yes = Ui.button("<color:" + Ui.GOOD + ">Sell for "
                 + plugin.economy().format(preview.net()) + "</color>", null, 160, p -> {
-            SellResult result = plugin.sell().sellAll(spawner, p.getUniqueId());
-            if (result.isEmpty()) {
-                plugin.messages().send(p, "sell.nothing");
-            } else {
-                plugin.messages().send(p, "sell.success", Messages.of(
-                        "items", Numbers.plain(result.itemsSold()),
-                        "money", plugin.economy().format(result.net())));
-            }
+            sellAll(p, spawner);
             openMain(p, spawner);
         });
         ActionButton no = Ui.button("<color:" + Ui.FAINT + ">Cancel</color>", null, 160,
                 p -> openMain(p, spawner));
         player.showDialog(Ui.confirm(base, yes, no));
+    }
+
+    /** Sells the whole spawner and reports the result. */
+    void sellAll(Player player, SpawnerData spawner) {
+        SellResult result = plugin.sell().sellAll(spawner, player.getUniqueId());
+        if (result.isEmpty()) {
+            plugin.messages().send(player, "sell.nothing");
+            return;
+        }
+        plugin.messages().send(player, "sell.success", Messages.of(
+                "items", Numbers.plain(result.itemsSold()),
+                "money", plugin.economy().format(result.net())));
     }
 
     void claimExp(Player player, SpawnerData spawner) {
@@ -552,6 +674,10 @@ public final class SpawnerUi {
     public void openStack(Player player, SpawnerData spawner) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openStack(player, spawner);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openStack(player, spawner);
             return;
         }
         if (!player.hasPermission("havocspawners.stack")) {
@@ -681,6 +807,10 @@ public final class SpawnerUi {
             plugin.bedrockUi().openUpgrade(player, spawner);
             return;
         }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openUpgrade(player, spawner);
+            return;
+        }
         if (!player.hasPermission("havocspawners.upgrade")) {
             plugin.messages().send(player, "no-permission");
             return;
@@ -713,20 +843,7 @@ public final class SpawnerUi {
 
             buttons.add(Ui.button("<color:" + Ui.GOOD + ">⬆ Upgrade to " + next.name() + "</color>",
                     plugin.economy().format(next.cost()), 190, p -> {
-                        if (!plugin.economy().available()) {
-                            plugin.messages().send(p, "economy.unavailable");
-                            return;
-                        }
-                        if (!plugin.economy().withdraw(p.getUniqueId(), next.cost())) {
-                            plugin.messages().send(p, "upgrade.too-poor", Messages.of(
-                                    "cost", plugin.economy().format(next.cost())));
-                            return;
-                        }
-                        spawner.level(next.level());
-                        spawner.recompute(plugin.settings(), plugin.upgrades());
-                        plugin.storage().queueSave(spawner);
-                        plugin.messages().send(p, "upgrade.success", Messages.of(
-                                "tier", next.name(), "level", String.valueOf(next.level())));
+                        buyUpgrade(p, spawner, next);
                         openUpgrade(p, spawner);
                     }));
         }
@@ -735,11 +852,36 @@ public final class SpawnerUi {
         player.showDialog(Ui.multi(base, buttons, backButton(spawner), 1));
     }
 
+    /** Charges for the next tier and applies it. Reports its own failures. */
+    void buyUpgrade(Player player, SpawnerData spawner, UpgradeTier next) {
+        if (next == null) {
+            return;
+        }
+        if (!plugin.economy().available()) {
+            plugin.messages().send(player, "economy.unavailable");
+            return;
+        }
+        if (!plugin.economy().withdraw(player.getUniqueId(), next.cost())) {
+            plugin.messages().send(player, "upgrade.too-poor", Messages.of(
+                    "cost", plugin.economy().format(next.cost())));
+            return;
+        }
+        spawner.level(next.level());
+        spawner.recompute(plugin.settings(), plugin.upgrades());
+        plugin.storage().queueSave(spawner);
+        plugin.messages().send(player, "upgrade.success", Messages.of(
+                "tier", next.name(), "level", String.valueOf(next.level())));
+    }
+
     // ------------------------------------------------------------------ automation
 
     public void openAutomation(Player player, SpawnerData spawner) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openAutomation(player, spawner);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openAutomation(player, spawner);
             return;
         }
         if (!player.hasPermission("havocspawners.automation")) {
@@ -794,6 +936,10 @@ public final class SpawnerUi {
     public void openNetwork(Player player, SpawnerData spawner) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openNetwork(player, spawner);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openNetwork(player, spawner);
             return;
         }
         if (!player.hasPermission("havocspawners.network")) {
@@ -877,6 +1023,10 @@ public final class SpawnerUi {
             plugin.bedrockUi().openNetworkOverview(player, network, origin);
             return;
         }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openNetworkOverview(player, network, origin);
+            return;
+        }
         List<SpawnerData> members = plugin.networks().members(player.getUniqueId(), network);
 
         long items = 0L;
@@ -904,51 +1054,21 @@ public final class SpawnerUi {
         List<ActionButton> buttons = new ArrayList<>();
         buttons.add(Ui.button("<color:" + Ui.GOOD + ">$ Sell whole network</color>",
                 plugin.economy().format(value), 180, p -> {
-                    long sold = 0L;
-                    double earned = 0.0D;
-                    for (SpawnerData member : members) {
-                        SellResult result = plugin.sell().sellAll(member, p.getUniqueId());
-                        sold += result.itemsSold();
-                        earned += result.net();
-                    }
-                    plugin.messages().send(p, "sell.success", Messages.of(
-                            "items", Numbers.plain(sold), "money", plugin.economy().format(earned)));
+                    sellNetwork(p, members);
                     openNetworkOverview(p, network, origin);
                 }));
         buttons.add(Ui.button("<color:" + Ui.GOOD + ">✦ Claim all XP</color>",
                 Numbers.plain(exp) + " experience", 180, p -> {
-                    long claimed = 0L;
-                    for (SpawnerData member : members) {
-                        claimed += member.storedExp();
-                        member.storedExp(0L);
-                        plugin.storage().queueSave(member);
-                    }
-                    if (claimed > 0L) {
-                        p.giveExp((int) Math.min(Integer.MAX_VALUE, claimed),
-                                plugin.settings().allowExpMending);
-                    }
-                    plugin.messages().send(p, "exp.claimed", Messages.of("exp", Numbers.plain(claimed)));
+                    claimNetworkExp(p, members);
                     openNetworkOverview(p, network, origin);
                 }));
         buttons.add(Ui.button("<color:" + Ui.WARN + ">⇩ Drain everything to me</color>",
                 "Withdraws every spawner in the network, metered so the server stays smooth", 180, p -> {
                     p.closeDialog();
-                    int started = 0;
-                    for (SpawnerData member : members) {
-                        if (plugin.dropService().dropAll(p, member)) {
-                            started++;
-                        }
-                    }
-                    plugin.messages().send(p, "network.drain-started", Messages.of(
-                            "count", Numbers.plain(started)));
+                    drainNetwork(p, members);
                 }));
         buttons.add(Ui.button("<color:" + Ui.INK + ">⚙ Toggle auto-sell for all</color>", null, 180, p -> {
-            boolean enable = members.stream().anyMatch(m -> !m.autoSell());
-            for (SpawnerData member : members) {
-                member.autoSell(enable);
-                plugin.storage().queueSave(member);
-            }
-            plugin.messages().send(p, enable ? "network.autosell-on" : "network.autosell-off");
+            toggleNetworkAutoSell(p, members);
             openNetworkOverview(p, network, origin);
         }));
 
@@ -959,11 +1079,60 @@ public final class SpawnerUi {
         player.showDialog(Ui.multi(base, buttons, back, 1));
     }
 
+    void sellNetwork(Player player, List<SpawnerData> members) {
+        long sold = 0L;
+        double earned = 0.0D;
+        for (SpawnerData member : members) {
+            SellResult result = plugin.sell().sellAll(member, player.getUniqueId());
+            sold += result.itemsSold();
+            earned += result.net();
+        }
+        plugin.messages().send(player, "sell.success", Messages.of(
+                "items", Numbers.plain(sold), "money", plugin.economy().format(earned)));
+    }
+
+    void claimNetworkExp(Player player, List<SpawnerData> members) {
+        long claimed = 0L;
+        for (SpawnerData member : members) {
+            claimed += member.storedExp();
+            member.storedExp(0L);
+            plugin.storage().queueSave(member);
+        }
+        if (claimed > 0L) {
+            player.giveExp((int) Math.min(Integer.MAX_VALUE, claimed), plugin.settings().allowExpMending);
+        }
+        plugin.messages().send(player, "exp.claimed", Messages.of("exp", Numbers.plain(claimed)));
+    }
+
+    void drainNetwork(Player player, List<SpawnerData> members) {
+        int started = 0;
+        for (SpawnerData member : members) {
+            if (plugin.dropService().dropAll(player, member)) {
+                started++;
+            }
+        }
+        plugin.messages().send(player, "network.drain-started", Messages.of(
+                "count", Numbers.plain(started)));
+    }
+
+    void toggleNetworkAutoSell(Player player, List<SpawnerData> members) {
+        boolean enable = members.stream().anyMatch(m -> !m.autoSell());
+        for (SpawnerData member : members) {
+            member.autoSell(enable);
+            plugin.storage().queueSave(member);
+        }
+        plugin.messages().send(player, enable ? "network.autosell-on" : "network.autosell-off");
+    }
+
     // ------------------------------------------------------------------ analytics
 
     public void openAnalytics(Player player, SpawnerData spawner) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openAnalytics(player, spawner);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openAnalytics(player, spawner);
             return;
         }
         List<DialogBody> body = new ArrayList<>();
@@ -1000,22 +1169,11 @@ public final class SpawnerUi {
             plugin.bedrockUi().openFilters(player, spawner, page);
             return;
         }
-        List<Material> candidates = new ArrayList<>();
-        for (Map.Entry<ItemSig, Long> entry : spawner.storage().orderedEntries()) {
-            if (!candidates.contains(entry.getKey().material())) {
-                candidates.add(entry.getKey().material());
-            }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openFilters(player, spawner, page);
+            return;
         }
-        for (Material material : spawner.filtered()) {
-            if (!candidates.contains(material)) {
-                candidates.add(material);
-            }
-        }
-        for (var entry : plugin.loot().tableFor(spawner).entries()) {
-            if (!candidates.contains(entry.material())) {
-                candidates.add(entry.material());
-            }
-        }
+        List<Material> candidates = filterCandidates(spawner);
 
         int perPage = 8;
         int pages = Math.max(1, (candidates.size() + perPage - 1) / perPage);
@@ -1037,11 +1195,7 @@ public final class SpawnerUi {
             buttons.add(Ui.button((filtered ? "<color:" + Ui.BAD + ">✖ " : "<color:" + Ui.GOOD + ">✔ ")
                             + SpawnerItems.pretty(material.name()) + "</color>",
                     filtered ? "Currently discarded" : "Currently kept", 150, p -> {
-                        if (!spawner.filtered().remove(material)) {
-                            spawner.filtered().add(material);
-                        }
-                        spawner.markDirty();
-                        plugin.storage().queueSave(spawner);
+                        toggleFilter(spawner, material);
                         openFilters(p, spawner, current);
                     }));
         }
@@ -1053,9 +1207,7 @@ public final class SpawnerUi {
         }
         if (!spawner.filtered().isEmpty()) {
             buttons.add(Ui.button("<color:" + Ui.GOOD + ">Clear all filters</color>", null, 150, p -> {
-                spawner.filtered().clear();
-                spawner.markDirty();
-                plugin.storage().queueSave(spawner);
+                clearFilters(spawner);
                 openFilters(p, spawner, 0);
             }));
         }

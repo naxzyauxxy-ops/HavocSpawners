@@ -55,6 +55,9 @@ public final class HavocSpawners extends JavaPlugin {
     private SpawnerManager spawners;
     private SpawnerItems items;
     private dev.havoc.spawners.migrate.ItemMigrator itemMigrator;
+    private dev.havoc.spawners.ui.ChestUi chestUi;
+    private dev.havoc.spawners.ui.UiPreferences uiModes;
+    private dev.havoc.spawners.ui.ChatPrompt chatPrompt;
 
     private LootRegistry lootRegistry;
     private LootEngine lootEngine;
@@ -108,6 +111,9 @@ public final class HavocSpawners extends JavaPlugin {
 
         this.items = new SpawnerItems(this);
         this.itemMigrator = new dev.havoc.spawners.migrate.ItemMigrator(this);
+        this.uiModes = new dev.havoc.spawners.ui.UiPreferences(this);
+        this.chatPrompt = new dev.havoc.spawners.ui.ChatPrompt(this);
+        this.chestUi = new dev.havoc.spawners.ui.ChestUi(this);
         this.analytics = new Analytics(this);
         this.spawners = new SpawnerManager(this);
         this.storage = new SqlStorage(this);
@@ -134,6 +140,8 @@ public final class HavocSpawners extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new InteractListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        getServer().getPluginManager().registerEvents(
+                new dev.havoc.spawners.listener.MenuListener(this), this);
 
         PluginCommand command = getCommand("havocspawners");
         if (command != null) {
@@ -158,6 +166,9 @@ public final class HavocSpawners extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (uiModes != null) {
+            uiModes.save();
+        }
         if (dropService != null) {
             dropService.cancelAll();
         }
@@ -245,6 +256,21 @@ public final class HavocSpawners extends JavaPlugin {
     /** Rewrites old, foreign spawner items into ours. */
     public dev.havoc.spawners.migrate.ItemMigrator itemMigrator() {
         return itemMigrator;
+    }
+
+    /** The chest-GUI presentation, used when a player is in MODERN mode. */
+    public dev.havoc.spawners.ui.ChestUi chestUi() {
+        return chestUi;
+    }
+
+    /** Which presentation each player has chosen. */
+    public dev.havoc.spawners.ui.UiPreferences uiModes() {
+        return uiModes;
+    }
+
+    /** Chat capture, for the one thing a chest cannot do: free text. */
+    public dev.havoc.spawners.ui.ChatPrompt chatPrompt() {
+        return chatPrompt;
     }
 
     public LootRegistry loot() {

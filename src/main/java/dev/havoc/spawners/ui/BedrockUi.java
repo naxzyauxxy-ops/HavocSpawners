@@ -104,6 +104,13 @@ public final class BedrockUi {
         if (plugin.settings().analyticsEnabled) {
             form.button(ink() + "Analytics", p -> openAnalytics(p, spawner));
         }
+        form.button(spawner.stopped()
+                        ? good() + "Turn on\n" + faint() + "Start producing again"
+                        : bad() + "Turn off\n" + faint() + "Storage is kept",
+                p -> {
+                    java().toggleRunning(p, spawner);
+                    openMain(p, spawner);
+                });
         form.send();
     }
 

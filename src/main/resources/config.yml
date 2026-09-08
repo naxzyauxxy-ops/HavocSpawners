@@ -28,6 +28,51 @@ theme:
   faint: "#9b9ba1"        # secondary / muted text
 
 # ----------------------------------------------------------------------------
+# Loot
+#
+# Every spawner type produces something without you writing a table for it. If
+# a type is missing from mob_drops.yml or item_spawners.yml, one is invented
+# once and cached:
+#
+#   item spawners  drop their own material - a chest spawner spawns chests
+#   mob spawners   are learned from the mob's OWN vanilla loot table, so a
+#                  sniffer spawner drops what a sniffer drops, and it stays
+#                  right when Mojang changes something
+#
+# Anything you DO write in those files always wins - a configured type is never
+# second-guessed. Auto-generated types are named in the server log so you can
+# see what was invented and override it if you want.
+# ----------------------------------------------------------------------------
+loot:
+  auto-generate: true
+  # Experience per simulated mob for an auto-generated table.
+  auto-item-exp: 1
+  auto-mob-exp: 3
+  # How many times a mob's vanilla loot table is rolled to learn its drops.
+  # Higher is more accurate about rare drops and costs a little more, once.
+  auto-samples: 40
+
+# ----------------------------------------------------------------------------
+# Menu style
+#
+#   DIALOG  Paper's server-side dialogs. Real buttons, tooltips, sliders and
+#           text fields, and no inventory to desync. This is the default.
+#   MODERN  A classic chest GUI, for players who prefer the familiar shape.
+#
+# Both drive exactly the same code - only the presentation differs - so a
+# server can switch at any time without touching spawner data.
+#
+# Bedrock players are unaffected either way: Geyser cannot render Java dialogs,
+# so they always get native Bedrock forms (see the bedrock: section).
+# ----------------------------------------------------------------------------
+ui:
+  mode: DIALOG
+  # Let players pick for themselves with /hs ui dialog|modern. Their choice is
+  # remembered in ui_modes.yml and overrides the mode above. Set false to make
+  # the server's choice the only one.
+  allow-player-choice: true
+
+# ----------------------------------------------------------------------------
 # Bedrock support (Geyser + Floodgate)
 #
 # Bedrock clients cannot see Java dialog screens at all - Geyser does not

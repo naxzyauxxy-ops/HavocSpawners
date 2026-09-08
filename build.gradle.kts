@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.havoc"
-version = "1.2.0"
+version = "1.4.0"
 description = "Dialog-driven virtual spawners for Paper 1.21.x"
 
 java {

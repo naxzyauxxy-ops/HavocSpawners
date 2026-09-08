@@ -92,6 +92,8 @@ spawner:
   broken: "<color:#ff8a95>Broke a <white><type></white> spawner <color:#9b9ba1>(×<stack>)</color>.</color>"
   # <type> <stack> <items>  - contents travelled inside the item, nothing was dropped
   broken-carried: "<color:#ff8a95>Broke a <white><type></white> spawner <color:#9b9ba1>(×<stack>)</color> - <color:#ffffff><items></color> items are stored inside it.</color>"
+  stopped: "<color:#ff8a95>Spawner turned <white>off</white>. It keeps everything already stored.</color>"
+  resumed: "<color:#ffffff>Spawner turned <color:#ff2b3d>on</color>.</color>"
   break-disabled: "<color:#ff2b3d>Breaking spawners is disabled.</color>"
   wrong-tool: "<color:#ff2b3d>You need a stronger pickaxe for that.</color>"
   needs-silk: "<color:#ff2b3d>You need Silk Touch to collect this spawner.</color>"
@@ -140,6 +142,18 @@ import:
 fixblocks:
   # <repaired> <recovered> <skipped>
   done: "<color:#ffffff>Repaired <color:#ff2b3d><repaired></color> spawner blocks and recovered <color:#ff2b3d><recovered></color> mis-adopted types. <color:#9b9ba1><skipped> were in unloaded chunks - fly near them and run it again.</color></color>"
+
+ui:
+  usage: "<color:#ff8a95>/hs ui (dialog | modern | default)</color>"
+  # <mode> <server>
+  current: "<color:#ffffff>Your menus: <color:#ff2b3d><mode></color>. <color:#9b9ba1>Server default: <server>. Change it with /hs ui dialog or /hs ui modern.</color></color>"
+  # <mode>
+  changed: "<color:#ffffff>Menus switched to <color:#ff2b3d><mode></color>.</color>"
+  reset: "<color:#ffffff>Using the server default again: <color:#ff2b3d><mode></color>.</color>"
+  locked: "<color:#ff8a95>The server picks the menu style here - it is set to <white><mode></white>.</color>"
+
+prompt:
+  cancelled: "<color:#ff8a95>Cancelled.</color>"
 
 settype:
   usage: "<color:#ff8a95>/hs settype (mob|item) [TYPE] <color:#9b9ba1>- look at the spawner first</color></color>"

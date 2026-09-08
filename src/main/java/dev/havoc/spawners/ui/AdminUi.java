@@ -35,6 +35,10 @@ public final class AdminUi {
             plugin.bedrockUi().openList(player, page, ownerFilter);
             return;
         }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openList(player, page, ownerFilter);
+            return;
+        }
         List<SpawnerData> spawners = new ArrayList<>(
                 ownerFilter == null ? plugin.spawners().all() : plugin.spawners().ownedBy(ownerFilter));
         spawners.sort(Comparator.comparingLong((SpawnerData s) -> -s.storage().totalItems()));
@@ -79,14 +83,16 @@ public final class AdminUi {
                 Ui.button("<color:" + Ui.FAINT + ">Close</color>", null, 90, Player::closeDialog), 2));
     }
 
-    private void teleport(Player player, SpawnerData spawner) {
+    void teleport(Player player, SpawnerData spawner) {
         BlockKey key = spawner.position();
         Location location = key.toLocation();
         if (location == null) {
             plugin.messages().send(player, "list.world-missing");
             return;
         }
+        // Either presentation could be on screen, and closing the wrong one is a no-op.
         player.closeDialog();
+        player.closeInventory();
         location.setYaw(player.getLocation().getYaw());
         location.setPitch(player.getLocation().getPitch());
         player.teleportAsync(location.add(0.0D, 1.0D, 0.0D));
@@ -96,6 +102,10 @@ public final class AdminUi {
     public void openLeaderboard(Player player, UUID ownerFilter) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openLeaderboard(player, ownerFilter);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openLeaderboard(player, ownerFilter);
             return;
         }
         List<SpawnerData> top = plugin.analytics()
@@ -138,6 +148,10 @@ public final class AdminUi {
     public void openPrices(Player player, int page) {
         if (plugin.bedrock().useForms(player)) {
             plugin.bedrockUi().openPrices(player, page);
+            return;
+        }
+        if (plugin.uiModes().modeFor(player) == UiMode.MODERN) {
+            plugin.chestUi().openPrices(player, page);
             return;
         }
         List<Map.Entry<Material, Double>> prices = new ArrayList<>(plugin.prices().customPrices().entrySet());

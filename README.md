@@ -1,9 +1,10 @@
 # HavocSpawners
 
-Virtual, dialog-driven spawners for **Paper 1.21.x** (1.21.6+).
+Virtual spawners for **Paper 1.21.x** (1.21.6+), in your choice of **dialogs** or a **chest GUI**.
 
-Spawners never spawn a mob. They simulate one, bank the drops in a virtual store, and hand them to
-the player through server-side **dialogs** — no chest GUIs, no click-slot maths, no inventory desync.
+Spawners never spawn a mob. They simulate one, bank the drops in a virtual store, and hand them back
+through whichever menu style you prefer — server-side dialogs by default, a classic chest GUI if you
+switch `ui.mode` to `MODERN`, and native Bedrock forms for cross-play clients.
 
 ---
 
@@ -18,6 +19,97 @@ It is a ground-up replacement for a SmartSpawner-style setup, with three things 
    million items, costs the same per tick as emptying one.
 3. **A real importer.** Your existing SmartSpawner database — YAML, SQLite or MySQL — comes across
    in one command.
+
+---
+
+## Loot without configuring anything
+
+Every spawner type produces something out of the box. If a type is missing from `mob_drops.yml` or
+`item_spawners.yml`, a table is invented once and cached:
+
+- an **item spawner** drops its own material — a chest spawner spawns chests, a bone block spawner
+  spawns bone blocks, and so on for every item in the game;
+- a **mob spawner** is learned from that mob's *own vanilla loot table* — the server is asked what a
+  sniffer really drops, rather than the plugin shipping a hand-written guess that goes stale the day
+  Mojang changes one.
+
+The mob's vanilla table is rolled `loot.auto-samples` times (40 by default) and the results become
+drop entries: which materials appeared, how often, and in what amounts. Raise it if you care about
+rare drops being represented — at 40 rolls a 2.5% drop is often missed entirely; by 200 it shows up
+at about the right rate. It costs that sampling once per mob type, then never again.
+
+```yaml
+loot:
+  auto-generate: true
+  auto-item-exp: 1
+  auto-mob-exp: 3
+  auto-samples: 40
+```
+
+**Anything you configure always wins** — a type present in the YAML is never second-guessed. Every
+invented table is named in the server log, so you can see what was generated and override just the
+ones you care about. A mob whose vanilla table cannot be read (some need a real killed entity) falls
+back to experience only and says so in the log.
+
+---
+
+## Turning a spawner off
+
+The right-click menu has an on/off switch. A spawner turned off stops simulating but keeps everything
+it has already produced, so it is the "stop filling up while I deal with this" button, not a
+destructive one. Turning it back on restarts the clock rather than paying out a backlog of catch-up
+cycles for the time it spent paused.
+
+It is in all three presentations — dialog, chest GUI and Bedrock forms.
+
+---
+
+## Two menu styles
+
+The same plugin, two presentations. Pick one in `config.yml`:
+
+```yaml
+ui:
+  mode: DIALOG            # DIALOG or MODERN
+  allow-player-choice: true
+```
+
+| | |
+|---|---|
+| **DIALOG** *(default)* | Paper's server-side dialogs. Real buttons and tooltips, sliders for page ranges, a text field for network names, and no inventory to desync. |
+| **MODERN** | A classic chest GUI. Item icons in real slots, page arrows on the bottom row, the shape players already know. |
+
+With `allow-player-choice: true` every player picks for themselves:
+
+```
+/hs ui modern
+/hs ui dialog
+/hs ui default     # follow the server setting again
+```
+
+The main menu also carries a **Menu style** button, so a player can flip between the two without
+leaving the spawner they are looking at.
+
+Their choice lives in `ui_modes.yml` — its own small file, not the spawner database, so a database
+blip can never lock anyone out of the menus. A player who never runs the command simply follows the
+server default and never appears in the file.
+
+**Both styles drive the same code.** Every chest button calls the identical action the dialog button
+calls — withdrawing, selling, stacking, upgrading, filtering — so a fix lands in both at once and
+they cannot drift apart. Only the layout differs.
+
+Where a chest genuinely cannot do what a dialog does, it is replaced rather than dropped:
+
+- the bulk-withdraw slider becomes preset buttons (1, 5, 20 pages, or everything);
+- the stack slider becomes ±1 / ±8 / ±64 and *add everything*;
+- naming a network — the one thing a chest has no field for — closes the menu and captures your next
+  chat line instead (type `cancel` to back out).
+
+Every click inside a chest menu is cancelled before it runs, including shift-clicks and number-key
+swaps, so an icon can never be taken out and a real item can never be shoved in.
+
+Bedrock players are unaffected by all of this: Geyser cannot render Java dialogs, so they keep
+getting native Bedrock forms whichever mode the server is in.
 
 ---
 
@@ -36,7 +128,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.2.0.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.4.0.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -134,6 +226,7 @@ rather than lifetime averages, and `/hs top` ranks the best earners.
 | `/hs near [radius]` | `havocspawners.command.near` | Lists spawners around you |
 | `/hs top` | `havocspawners.command.top` | Top earning spawners |
 | `/hs prices` | `havocspawners.command.use` | Sell price list |
+| `/hs ui dialog\|modern` | *(none)* | Choose how the menus look, per player |
 | `/hs give <player> mob\|item <TYPE> [amount] [stack] [level]` | `havocspawners.command.give` | Gives a spawner item |
 | `/hs import yaml\|sqlite\|mysql` | `havocspawners.command.import` | SmartSpawner import |
 | `/hs reload` | `havocspawners.command.reload` | Reloads every config file |
@@ -180,6 +273,7 @@ Feature permissions: `havocspawners.use`, `.stack`, `.break`, `.changetype`, `.s
 | `prices.yml` | Custom sell prices |
 | `upgrades.yml` | The upgrade ladder |
 | `lang/en_US.yml` | Chat messages (MiniMessage) — copy the folder to add a language |
+| `ui_modes.yml` | Per-player menu style, written only for players who chose one |
 
 ---
 
@@ -207,7 +301,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.2.0.jar
+gradle build        # -> build/libs/HavocSpawners-1.4.0.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an

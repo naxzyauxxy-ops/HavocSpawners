@@ -61,8 +61,29 @@ public final class PlayerListener implements Listener {
         }, 20L);
     }
 
+    /**
+     * Captures the answer to a chat prompt.
+     * <p>
+     * Only fires for a player the plugin actually asked something, and the line is swallowed so a
+     * network name never lands in public chat. Runs at {@code LOWEST} so the message is intercepted
+     * before any chat-formatting plugin gets to broadcast it.
+     */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onChat(io.papermc.paper.event.player.AsyncChatEvent event) {
+        org.bukkit.entity.Player player = event.getPlayer();
+        if (!plugin.chatPrompt().waiting(player)) {
+            return;
+        }
+        String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+                .plainText().serialize(event.message());
+        if (plugin.chatPrompt().answer(player, text)) {
+            event.setCancelled(true);
+        }
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
+        plugin.chatPrompt().forget(event.getPlayer());
         plugin.spawners().tracker().remove(event.getPlayer().getUniqueId());
     }
 

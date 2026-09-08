@@ -6,6 +6,7 @@ import dev.havoc.spawners.migrate.ImportReport;
 import dev.havoc.spawners.spawner.BlockKey;
 import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.ui.Ui;
+import dev.havoc.spawners.ui.UiMode;
 import dev.havoc.spawners.util.Numbers;
 import dev.havoc.spawners.util.Text;
 import org.bukkit.Bukkit;
@@ -28,7 +29,7 @@ public final class HavocCommand implements TabExecutor {
 
     private static final List<String> SUBCOMMANDS = List.of(
             "help", "reload", "give", "list", "near", "prices", "top", "import", "info", "clearghosts",
-            "stats", "fixblocks", "fixitems", "settype", "inspect");
+            "stats", "fixblocks", "fixitems", "settype", "inspect", "ui");
 
     private final HavocSpawners plugin;
 
@@ -56,6 +57,7 @@ public final class HavocCommand implements TabExecutor {
             case "fixblocks" -> fixBlocks(sender);
             case "settype" -> setType(sender, args);
             case "fixitems" -> fixItems(sender, args);
+            case "ui" -> chooseUi(sender, args);
             case "inspect" -> inspect(sender);
             case "stats" -> stats(sender);
             default -> help(sender);
@@ -71,6 +73,9 @@ public final class HavocCommand implements TabExecutor {
         line(sender, "/hs near [radius]", "Find spawners around you");
         line(sender, "/hs top", "Top earning spawners");
         line(sender, "/hs prices", "Show sell prices");
+        if (plugin.settings().uiAllowPlayerChoice) {
+            line(sender, "/hs ui (dialog | modern)", "Choose how the menus look");
+        }
         if (sender.hasPermission("havocspawners.command.give")) {
             line(sender, "/hs give [player] mob [TYPE] [amount] [stack]", "Give a mob spawner");
             line(sender, "/hs give [player] item [MATERIAL] [amount] [stack]", "Give an item spawner");
@@ -478,6 +483,45 @@ public final class HavocCommand implements TabExecutor {
                 "players", String.valueOf(players.get()))), 40L);
     }
 
+    /**
+     * Lets a player pick their own presentation.
+     * <p>
+     * Needs no permission: it changes nothing but what that one player sees. It is hidden entirely
+     * when {@code ui.allow-player-choice} is off, in which case the server's mode is the only mode.
+     */
+    private void chooseUi(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            plugin.messages().send(sender, "players-only");
+            return;
+        }
+        UiMode serverMode = plugin.settings().uiMode;
+        if (!plugin.settings().uiAllowPlayerChoice) {
+            plugin.messages().send(sender, "ui.locked", Messages.of("mode", serverMode.display()));
+            return;
+        }
+        if (args.length < 2) {
+            plugin.messages().send(sender, "ui.current", Messages.of(
+                    "mode", plugin.uiModes().modeFor(player).display(),
+                    "server", serverMode.display()));
+            return;
+        }
+        String choice = args[1].toLowerCase(Locale.ROOT);
+        if (choice.equals("default") || choice.equals("reset")) {
+            plugin.uiModes().choose(player, null);
+            plugin.uiModes().save();
+            plugin.messages().send(sender, "ui.reset", Messages.of("mode", serverMode.display()));
+            return;
+        }
+        UiMode picked = UiMode.of(choice, null);
+        if (picked == null) {
+            plugin.messages().send(sender, "ui.usage");
+            return;
+        }
+        plugin.uiModes().choose(player, picked);
+        plugin.uiModes().save();
+        plugin.messages().send(sender, "ui.changed", Messages.of("mode", picked.display()));
+    }
+
     private void clearGhosts(CommandSender sender) {
         if (!sender.hasPermission("havocspawners.command.reload")) {
             plugin.messages().send(sender, "no-permission");
@@ -637,6 +681,9 @@ public final class HavocCommand implements TabExecutor {
         }
         if (sub.equals("near") && args.length == 2) {
             return filter(Arrays.asList("16", "32", "64", "128"), args[1]);
+        }
+        if (sub.equals("ui") && args.length == 2) {
+            return filter(List.of("dialog", "modern", "default"), args[1]);
         }
         if (sub.equals("fixitems") && args.length == 2) {
             List<String> names = new ArrayList<>();

@@ -147,6 +147,10 @@ public final class Settings {
     public String importUser = "root";
     public String importPassword = "";
 
+    // presentation
+    public dev.havoc.spawners.ui.UiMode uiMode = dev.havoc.spawners.ui.UiMode.DIALOG;
+    public boolean uiAllowPlayerChoice = true;
+
     // legacy / foreign spawner items
     public EntityType legacyFallbackType = EntityType.PIG;
     public boolean legacyWarnUnknown = true;
@@ -277,6 +281,10 @@ public final class Settings {
         s.importDatabase = c.getString("import.mysql.database", "smartspawner");
         s.importUser = c.getString("import.mysql.username", "root");
         s.importPassword = c.getString("import.mysql.password", "");
+
+        s.uiMode = dev.havoc.spawners.ui.UiMode.of(c.getString("ui.mode", "DIALOG"),
+                dev.havoc.spawners.ui.UiMode.DIALOG);
+        s.uiAllowPlayerChoice = c.getBoolean("ui.allow-player-choice", true);
 
         s.legacyFallbackType = entityOf(c.getString("legacy.unknown-type", "PIG"), EntityType.PIG);
         s.legacyWarnUnknown = c.getBoolean("legacy.warn-on-unknown", true);
