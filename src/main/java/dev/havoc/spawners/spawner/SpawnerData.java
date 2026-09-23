@@ -45,6 +45,8 @@ public final class SpawnerData {
     private boolean autoSell;
     private boolean autoCollect;
     private BlockKey linkedContainer;
+    /** null = follow the server's spawner.spawn-mode. */
+    private SpawnMode spawnMode;
     private String network;
 
     private long producedItems;
@@ -269,6 +271,16 @@ public final class SpawnerData {
 
     public void autoCollect(boolean autoCollect) {
         this.autoCollect = autoCollect;
+        markDirty();
+    }
+
+    /** This spawner's own choice of spawn mode, or null when it follows the server setting. */
+    public SpawnMode spawnMode() {
+        return spawnMode;
+    }
+
+    public void spawnMode(SpawnMode spawnMode) {
+        this.spawnMode = spawnMode;
         markDirty();
     }
 

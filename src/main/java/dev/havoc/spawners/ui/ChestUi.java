@@ -8,6 +8,8 @@ import dev.havoc.spawners.feature.UpgradeTier;
 import dev.havoc.spawners.spawner.ItemSig;
 import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.spawner.SpawnerItems;
+import dev.havoc.spawners.ui.layout.GuiButton;
+import dev.havoc.spawners.ui.layout.GuiLayout;
 import dev.havoc.spawners.util.Numbers;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -116,6 +118,23 @@ public final class ChestUi {
                     dialogs().toggleRunning(p, spawner);
                     openMain(p, spawner);
                 });
+        if (plugin.settings().allowPlayerSpawnMode) {
+            var mode = dev.havoc.spawners.spawner.SpawnerManager
+                    .effectiveMode(spawner, plugin.settings());
+            boolean real = mode == dev.havoc.spawners.spawner.SpawnMode.REAL;
+            menu.set(39, Menu.icon(real ? Material.ZOMBIE_HEAD : Material.COMPARATOR,
+                            real ? "<color:" + Ui.WARN + ">Real mobs</color>"
+                                    : "<color:" + Ui.ACCENT + ">Simulated</color>",
+                            stat("Currently", mode.display()),
+                            hint(real
+                                    ? "Mobs are spawned into the world for you to kill"
+                                    : "Their drops are banked in storage instead"),
+                            hint("Click to switch")),
+                    p -> {
+                        dialogs().toggleSpawnMode(p, spawner);
+                        openMain(p, spawner);
+                    });
+        }
         if (plugin.settings().uiAllowPlayerChoice) {
             menu.set(43, Menu.icon(Material.ITEM_FRAME, "<color:" + Ui.FAINT + ">Menu style</color>",
                             stat("Currently", plugin.uiModes().modeFor(player).display()),
@@ -162,34 +181,30 @@ public final class ChestUi {
                     p -> openItemActions(p, spawner, sig));
         }
 
-        menu.set(45, Menu.icon(Material.BOOK, "<color:" + Ui.ACCENT + ">Storage</color>",
-                stat("Used", Numbers.compact(used) + " / " + Numbers.compact(spawner.maxSlots()) + " slots"),
-                stat("Items", Numbers.plain(spawner.storage().totalItems())),
-                stat("Pages", Numbers.plain(spawner.storage().pageCount()))));
-
-        if (current > 0) {
-            menu.set(46, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Previous page</color>"),
-                    p -> openStorage(p, spawner, current - 1));
+        // The bottom row comes from gui_layouts/storage_gui.yml: slot_1..slot_9 map onto the last
+        // row, which is what that file's own comments call inventory slots 46-54.
+        // Fill the control row first so unconfigured slots read as panel rather than as holes.
+        ItemStack filler = Menu.icon(Material.BLACK_STAINED_GLASS_PANE, "<color:" + Ui.FAINT + "> </color>");
+        for (int slot = 45; slot < 54; slot++) {
+            menu.set(slot, filler);
         }
-        if (current < pages - 1) {
-            menu.set(47, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Next page</color>"),
-                    p -> openStorage(p, spawner, current + 1));
+        GuiLayout layout = plugin.guiLayouts().storage();
+        GuiLayout.Condition condition = sellAvailable()
+                ? GuiLayout.Condition.SELL_INTEGRATION : GuiLayout.Condition.NO_SELL_INTEGRATION;
+        for (Map.Entry<Integer, GuiButton> entry : layout.slots(condition).entrySet()) {
+            int configured = entry.getKey();
+            GuiButton button = entry.getValue();
+            if (!button.enabled() || configured < 1 || configured > 9) {
+                continue;
+            }
+            int slot = 45 + (configured - 1);
+            if (button.infoButton()) {
+                menu.set(slot, infoTile(spawner, used, pages));
+                continue;
+            }
+            menu.set(slot, layoutIcon(button, spawner, button.actionFor(false), current, pages),
+                    p -> runStorageAction(p, spawner, button.actionFor(false), current));
         }
-
-        menu.set(49, Menu.icon(Material.DROPPER, "<color:" + Ui.WARN + ">Drop a page</color>",
-                        hint("Throws 45 stacks where you are looking"),
-                        hint("The screen stays open, so you can keep going")),
-                p -> dialogs().dropOnePage(p, spawner, current));
-        menu.set(50, Menu.icon(Material.MINECART, "<color:" + Ui.WARN + ">Bulk withdraw</color>",
-                        hint("Empty many storage pages at once")),
-                p -> openBulkDrop(p, spawner));
-        menu.set(51, Menu.icon(Material.GOLD_INGOT, "<color:" + Ui.GOOD + ">Sell everything</color>"),
-                p -> openSell(p, spawner));
-        menu.set(52, Menu.icon(Material.HOPPER, "<color:" + Ui.INK + ">Filters</color>",
-                        stat("Filtered", spawner.filtered().isEmpty()
-                                ? "nothing" : Numbers.plain(spawner.filtered().size()) + " materials")),
-                p -> openFilters(p, spawner, 0));
-        menu.set(53, back(), p -> openMain(p, spawner));
         menu.open(player);
     }
 
@@ -308,6 +323,14 @@ public final class ChestUi {
             plugin.messages().send(player, "economy.unavailable");
             return;
         }
+        GuiLayout layout = plugin.guiLayouts().sellConfirm();
+        // The layout file can turn the confirmation off entirely, which is what the old plugin's
+        // skip_sell_confirmation did.
+        if (layout.skipSellConfirmation()) {
+            dialogs().sellAll(player, spawner);
+            openMain(player, spawner);
+            return;
+        }
         SellResult preview = plugin.sell().preview(spawner);
 
         Menu menu = new Menu("<color:" + Ui.GOOD + ">Confirm sale</color>", 3, true);
@@ -321,17 +344,40 @@ public final class ChestUi {
         if (preview.unsellableItems() > 0L) {
             lore.add(hint(Numbers.plain(preview.unsellableItems()) + " items have no price and stay"));
         }
-        menu.set(4, Menu.icon(Material.GOLD_BLOCK, "<color:" + Ui.GOOD + "><bold>Sell storage</bold></color>",
-                lore.toArray(new String[0])));
 
-        menu.set(11, Menu.icon(Material.LIME_CONCRETE, "<color:" + Ui.GOOD + ">Sell for "
-                        + plugin.economy().format(preview.net()) + "</color>"),
-                p -> {
-                    dialogs().sellAll(p, spawner);
-                    openMain(p, spawner);
-                });
-        menu.set(15, Menu.icon(Material.RED_CONCRETE, "<color:" + Ui.FAINT + ">Cancel</color>"),
-                p -> openMain(p, spawner));
+        // gui_layouts/sell_confirm_gui.yml: slot_1..slot_27 over three rows.
+        for (Map.Entry<Integer, GuiButton> entry : layout.slots(sellAvailable()
+                ? GuiLayout.Condition.SELL_INTEGRATION
+                : GuiLayout.Condition.NO_SELL_INTEGRATION).entrySet()) {
+            int configured = entry.getKey();
+            GuiButton button = entry.getValue();
+            if (!button.enabled() || configured < 1 || configured > 27) {
+                continue;
+            }
+            int slot = configured - 1;
+            if (button.infoButton()) {
+                menu.set(slot, Menu.decorate(dialogs().iconStack(spawner),
+                        "<color:" + Ui.GOOD + "><bold>Sell storage</bold></color>",
+                        lore.toArray(new String[0])));
+                continue;
+            }
+            String action = button.actionFor(false);
+            Material material = button.usesSpawnerIcon()
+                    ? plugin.lootEngine().iconFor(spawner) : button.material();
+            if ("confirm".equalsIgnoreCase(action)) {
+                menu.set(slot, Menu.icon(material, "<color:" + Ui.GOOD + ">Sell for "
+                                + plugin.economy().format(preview.net()) + "</color>"),
+                        p -> {
+                            dialogs().sellAll(p, spawner);
+                            openMain(p, spawner);
+                        });
+            } else if ("cancel".equalsIgnoreCase(action)) {
+                menu.set(slot, Menu.icon(material, "<color:" + Ui.FAINT + ">Cancel</color>"),
+                        p -> openMain(p, spawner));
+            } else {
+                menu.set(slot, Menu.icon(material, "<color:" + Ui.FAINT + "> </color>"));
+            }
+        }
         menu.open(player);
     }
 
@@ -663,6 +709,144 @@ public final class ChestUi {
         }
         menu.set(53, back(), p -> openStorage(p, spawner, 0));
         menu.open(player);
+    }
+
+    // ------------------------------------------------------------------ configured layouts
+
+    /** True when selling is actually possible, which is what the layout's conditions key off. */
+    private boolean sellAvailable() {
+        return plugin.settings().economyEnabled && plugin.economy().available();
+    }
+
+    /** The display-only tile: the spawner's own icon, its stats and what it drops. */
+    private ItemStack infoTile(SpawnerData spawner, long used, int pages) {
+        List<String> lore = new ArrayList<>();
+        lore.add(stat("Type", spawner.displayType() + " ×" + Numbers.plain(spawner.stackSize())));
+        lore.add(stat("Used", Numbers.compact(used) + " / " + Numbers.compact(spawner.maxSlots()) + " slots"));
+        lore.add(stat("Items", Numbers.plain(spawner.storage().totalItems())));
+        lore.add(stat("Pages", Numbers.plain(pages)));
+        lore.add(stat("Stored XP", Numbers.plain(spawner.storedExp())));
+        lore.add(stat("Mode", dev.havoc.spawners.spawner.SpawnerManager
+                .effectiveMode(spawner, plugin.settings()).display()));
+        lore.add("<color:" + Ui.FAINT + ">Drops</color>");
+        int shown = 0;
+        for (var entry : plugin.loot().tableFor(spawner).entries()) {
+            if (shown++ >= 6) {
+                lore.add(hint("  ..."));
+                break;
+            }
+            lore.add("<color:" + Ui.FAINT + ">  · </color><color:" + Ui.INK + ">"
+                    + SpawnerItems.pretty(entry.material().name()) + "</color> <color:" + Ui.FAINT + ">"
+                    + entry.min() + "-" + entry.max() + " @ " + Math.round(entry.chance()) + "%</color>");
+        }
+        if (shown == 0) {
+            lore.add(hint("  nothing"));
+        }
+        return Menu.decorate(dialogs().iconStack(spawner),
+                "<color:" + Ui.ACCENT + "><bold>" + spawner.displayType() + "</bold></color>",
+                lore.toArray(new String[0]));
+    }
+
+    /** Names a configured button from its action, so a re-slotted layout still reads correctly. */
+    private ItemStack layoutIcon(GuiButton button, SpawnerData spawner, String action,
+                                 int page, int pages) {
+        Material material = button.usesSpawnerIcon()
+                ? plugin.lootEngine().iconFor(spawner) : button.material();
+        String name;
+        String[] lore;
+        switch (action == null ? "none" : action.toLowerCase(java.util.Locale.ROOT)) {
+            case "previous_page" -> {
+                name = "<color:" + Ui.ACCENT + ">Previous page</color>";
+                lore = new String[]{stat("Page", (page + 1) + " / " + pages)};
+            }
+            case "next_page" -> {
+                name = "<color:" + Ui.ACCENT + ">Next page</color>";
+                lore = new String[]{stat("Page", (page + 1) + " / " + pages)};
+            }
+            case "sort_items" -> {
+                name = "<color:" + Ui.INK + ">Sort storage</color>";
+                lore = new String[]{hint("Biggest stacks first")};
+            }
+            case "open_filter" -> {
+                name = "<color:" + Ui.INK + ">Filters</color>";
+                lore = new String[]{stat("Filtered", spawner.filtered().isEmpty()
+                        ? "nothing" : Numbers.plain(spawner.filtered().size()) + " materials")};
+            }
+            case "sell_all" -> {
+                name = "<color:" + Ui.GOOD + ">Sell everything</color>";
+                lore = new String[]{stat("Value", plugin.economy().format(
+                        plugin.sell().preview(spawner).net()))};
+            }
+            case "sell_and_exp" -> {
+                name = "<color:" + Ui.GOOD + ">Sell everything + XP</color>";
+                lore = new String[]{
+                        stat("Value", plugin.economy().format(plugin.sell().preview(spawner).net())),
+                        stat("XP", Numbers.plain(spawner.storedExp()))};
+            }
+            case "collect_exp" -> {
+                name = "<color:" + Ui.GOOD + ">Claim XP</color>";
+                lore = new String[]{stat("Stored", Numbers.plain(spawner.storedExp()))};
+            }
+            case "take_all" -> {
+                name = "<color:" + Ui.ACCENT + ">Take this page</color>";
+                lore = new String[]{hint("Fills your inventory from this page")};
+            }
+            case "drop_page" -> {
+                name = "<color:" + Ui.WARN + ">Drop this page</color>";
+                lore = new String[]{hint("Throws 45 stacks where you are looking"),
+                        hint("The screen stays open, so you can keep going")};
+            }
+            case "bulk_withdraw" -> {
+                name = "<color:" + Ui.WARN + ">Bulk withdraw</color>";
+                lore = new String[]{hint("Empty many pages at once")};
+            }
+            case "return_main" -> {
+                name = "<color:" + Ui.FAINT + ">← Back</color>";
+                lore = new String[0];
+            }
+            case "close" -> {
+                name = "<color:" + Ui.FAINT + ">Close</color>";
+                lore = new String[0];
+            }
+            default -> {
+                name = "<color:" + Ui.FAINT + "> </color>";
+                lore = new String[0];
+            }
+        }
+        return Menu.icon(material, name, lore);
+    }
+
+    /** Runs a storage-screen action named by the layout file. */
+    private void runStorageAction(Player player, SpawnerData spawner, String action, int page) {
+        switch (action == null ? "none" : action.toLowerCase(java.util.Locale.ROOT)) {
+            case "previous_page" -> openStorage(player, spawner, page - 1);
+            case "next_page" -> openStorage(player, spawner, page + 1);
+            case "sort_items" -> {
+                dialogs().sortStorage(spawner);
+                openStorage(player, spawner, page);
+            }
+            case "open_filter" -> openFilters(player, spawner, 0);
+            case "sell_all" -> openSell(player, spawner);
+            case "sell_and_exp" -> {
+                dialogs().claimExpQuietly(player, spawner);
+                openSell(player, spawner);
+            }
+            case "collect_exp" -> {
+                dialogs().claimExp(player, spawner);
+                openStorage(player, spawner, page);
+            }
+            case "take_all" -> {
+                dialogs().takePage(player, spawner, page);
+                openStorage(player, spawner, page);
+            }
+            case "drop_page" -> dialogs().dropOnePage(player, spawner, page);
+            case "bulk_withdraw" -> openBulkDrop(player, spawner);
+            case "return_main" -> openMain(player, spawner);
+            case "close" -> player.closeInventory();
+            default -> {
+                // "none" and anything unrecognised: a display tile, not a button.
+            }
+        }
     }
 
     // ------------------------------------------------------------------ server-wide screens

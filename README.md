@@ -1,10 +1,11 @@
 # HavocSpawners
 
-Virtual spawners for **Paper 1.21.x** (1.21.6+), in your choice of **dialogs** or a **chest GUI**.
+Spawners for **Paper 1.21.x** (1.21.6+), in a fully configurable **chest GUI** — or Paper dialogs, if
+you prefer them.
 
-Spawners never spawn a mob. They simulate one, bank the drops in a virtual store, and hand them back
-through whichever menu style you prefer — server-side dialogs by default, a classic chest GUI if you
-switch `ui.mode` to `MODERN`, and native Bedrock forms for cross-play clients.
+A spawner can either **simulate** its mobs, banking what they would have dropped so a ×26,000 stack
+costs the server nothing, or **spawn them for real** like a vanilla spawner. That is a per-spawner
+switch in its own menu. Bedrock players get native forms either way.
 
 ---
 
@@ -12,9 +13,9 @@ switch `ui.mode` to `MODERN`, and native Bedrock forms for cross-play clients.
 
 It is a ground-up replacement for a SmartSpawner-style setup, with three things done differently:
 
-1. **Dialogs instead of chest GUIs.** Every screen is a Paper `Dialog`: real buttons, real tooltips,
-   real text inputs and sliders. Storage is shown *per item type* with counts, stack totals, share of
-   capacity and live sell value, instead of 45 nameless chest slots.
+1. **Your GUI, your layout.** The chest screens are driven by `gui_layouts/*.yml` in the same format
+   the old plugin used, so an existing layout drops straight in. Prefer Paper's dialogs? One setting
+   swaps every screen over, and both run the same code.
 2. **Bulk withdrawal that does not lag.** Emptying forty pages, or a whole spawner holding four
    million items, costs the same per tick as emptying one.
 3. **A real importer.** Your existing SmartSpawner database — YAML, SQLite or MySQL — comes across
@@ -64,20 +65,74 @@ It is in all three presentations — dialog, chest GUI and Bedrock forms.
 
 ---
 
+## Simulated or real spawns
+
+Each spawner works one of two ways, and you can switch a single spawner from its own menu:
+
+| | |
+|---|---|
+| **SIMULATED** *(default)* | No mob ever exists. The drops a mob *would* have made are worked out and banked in the spawner's storage. This is what lets a ×26,000 stack cost the server nothing. |
+| **REAL** | Real mobs are spawned into the world like a vanilla spawner, and players kill them for their own drops. Nothing is banked. |
+
+```yaml
+spawner:
+  spawn-mode: SIMULATED
+  allow-player-spawn-mode: true
+  real:
+    max-per-cycle: 4
+    max-nearby: 24
+    spawn-radius: 2
+```
+
+**Switching never deletes anything.** Whatever a spawner already banked stays browsable and
+withdrawable — it just stops growing while that spawner is in REAL mode, and starts again when you
+switch back. Nobody loses a stockpile by trying the other mode out.
+
+**The caps are not optional.** A stacked spawner's simulated mob count is enormous by design, and
+asking for that many *real* mobs would take the server down — so real spawning is capped per cycle
+and by how many of that mob are already standing near the block. Stacking a REAL spawner makes it
+reach the cap more reliably rather than exceed it. An item spawner in REAL mode drops its item on the
+floor instead of spawning anything.
+
+---
+
 ## Two menu styles
 
 The same plugin, two presentations. Pick one in `config.yml`:
 
 ```yaml
 ui:
-  mode: DIALOG            # DIALOG or MODERN
+  mode: MODERN            # MODERN (chest GUI) or DIALOG
   allow-player-choice: true
 ```
 
 | | |
 |---|---|
-| **DIALOG** *(default)* | Paper's server-side dialogs. Real buttons and tooltips, sliders for page ranges, a text field for network names, and no inventory to desync. |
-| **MODERN** | A classic chest GUI. Item icons in real slots, page arrows on the bottom row, the shape players already know. |
+| **MODERN** *(default)* | A classic chest GUI. Item icons in real slots, controls on the bottom row, the shape players already know. |
+| **DIALOG** | Paper's server-side dialogs. Real buttons and tooltips, sliders for page ranges, a text field for network names, and no inventory to desync. |
+
+### The chest layouts are yours
+
+The storage and sell-confirmation screens are laid out by two files, in the same `slot_N` format the
+old plugin used — drop an existing layout in and it keeps working:
+
+```
+plugins/HavocSpawners/gui_layouts/storage_gui.yml
+plugins/HavocSpawners/gui_layouts/sell_confirm_gui.yml
+```
+
+Storage `slot_1`–`slot_9` are the bottom row. Supported actions: `previous_page`, `next_page`,
+`sort_items`, `open_filter`, `sell_all`, `sell_and_exp`, `collect_exp`, `take_all`, `drop_page`,
+`bulk_withdraw`, `return_main`, `close`, `none`. The `if: sell_integration / no_sell_integration`
+conditions work, so one slot can be *Sell + XP* when an economy is hooked and *Take all* when it is
+not. `info_button: true` gives the display tile, and `PLAYER_HEAD` means "use this spawner's own
+icon" — the mob-head slot. Any slot you leave out is filled with a plain panel.
+
+Sell confirmation uses `slot_1`–`slot_27` with `confirm`, `cancel` and `none`, and
+`skip_sell_confirmation: true` sells immediately with no confirm screen at all.
+
+Both files reload with `/hs reload`. A typo falls back to the built-in layout and logs a warning
+rather than leaving you a screen with no buttons on it.
 
 With `allow-player-choice: true` every player picks for themselves:
 
@@ -128,7 +183,7 @@ The plugin refuses to enable below 1.21.6, because the Dialog API does not exist
 
 ## Installing
 
-1. Drop `HavocSpawners-1.4.0.jar` into `plugins/`.
+1. Drop `HavocSpawners-1.5.0.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -273,6 +328,7 @@ Feature permissions: `havocspawners.use`, `.stack`, `.break`, `.changetype`, `.s
 | `prices.yml` | Custom sell prices |
 | `upgrades.yml` | The upgrade ladder |
 | `lang/en_US.yml` | Chat messages (MiniMessage) — copy the folder to add a language |
+| `gui_layouts/*.yml` | Chest-GUI button layouts (storage, sell confirmation) |
 | `ui_modes.yml` | Per-player menu style, written only for players who chose one |
 
 ---
@@ -301,7 +357,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.4.0.jar
+gradle build        # -> build/libs/HavocSpawners-1.5.0.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an

@@ -152,6 +152,11 @@ ui:
   reset: "<color:#ffffff>Using the server default again: <color:#ff2b3d><mode></color>.</color>"
   locked: "<color:#ff8a95>The server picks the menu style here - it is set to <white><mode></white>.</color>"
 
+spawn-mode:
+  # <mode>
+  changed: "<color:#ffffff>Spawn mode set to <color:#ff2b3d><mode></color>. <color:#9b9ba1>Anything already stored stays where it is.</color></color>"
+  locked: "<color:#ff8a95>The server picks the spawn mode here - it is set to <white><mode></white>.</color>"
+
 prompt:
   cancelled: "<color:#ff8a95>Cancelled.</color>"
 

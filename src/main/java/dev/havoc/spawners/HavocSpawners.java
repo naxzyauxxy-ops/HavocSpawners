@@ -58,6 +58,7 @@ public final class HavocSpawners extends JavaPlugin {
     private dev.havoc.spawners.ui.ChestUi chestUi;
     private dev.havoc.spawners.ui.UiPreferences uiModes;
     private dev.havoc.spawners.ui.ChatPrompt chatPrompt;
+    private dev.havoc.spawners.ui.layout.GuiLayouts guiLayouts;
 
     private LootRegistry lootRegistry;
     private LootEngine lootEngine;
@@ -113,6 +114,8 @@ public final class HavocSpawners extends JavaPlugin {
         this.itemMigrator = new dev.havoc.spawners.migrate.ItemMigrator(this);
         this.uiModes = new dev.havoc.spawners.ui.UiPreferences(this);
         this.chatPrompt = new dev.havoc.spawners.ui.ChatPrompt(this);
+        this.guiLayouts = new dev.havoc.spawners.ui.layout.GuiLayouts();
+        this.guiLayouts.reload(this);
         this.chestUi = new dev.havoc.spawners.ui.ChestUi(this);
         this.analytics = new Analytics(this);
         this.spawners = new SpawnerManager(this);
@@ -221,6 +224,7 @@ public final class HavocSpawners extends JavaPlugin {
         this.prices.reload(this);
         this.economy.reload(this);
         this.bedrock.reload();
+        this.guiLayouts.reload(this);
         this.spawners.recomputeAll();
         this.spawners.startTicking();
         this.automation.start();
@@ -266,6 +270,11 @@ public final class HavocSpawners extends JavaPlugin {
     /** Which presentation each player has chosen. */
     public dev.havoc.spawners.ui.UiPreferences uiModes() {
         return uiModes;
+    }
+
+    /** Chest-GUI button layouts, read from gui_layouts/. */
+    public dev.havoc.spawners.ui.layout.GuiLayouts guiLayouts() {
+        return guiLayouts;
     }
 
     /** Chat capture, for the one thing a chest cannot do: free text. */

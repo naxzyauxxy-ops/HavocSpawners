@@ -44,7 +44,7 @@ public final class SqlStorage {
             "stack_size", "spawner_level", "stored_exp", "active", "stopped",
             "last_spawn", "created_at", "auto_sell", "auto_collect",
             "linked_container", "network_name", "filtered_items", "preferred_sort",
-            "produced_items", "produced_exp", "earned_money", "inventory"
+            "produced_items", "produced_exp", "earned_money", "inventory", "spawn_mode"
     };
 
     private final HavocSpawners plugin;
@@ -131,6 +131,7 @@ public final class SqlStorage {
                 + "produced_exp BIGINT NOT NULL DEFAULT 0,"
                 + "earned_money DOUBLE PRECISION NOT NULL DEFAULT 0,"
                 + "inventory " + text + " DEFAULT NULL,"
+                + "spawn_mode VARCHAR(16) DEFAULT NULL,"
                 + "PRIMARY KEY (server_name, spawner_id)"
                 + ")";
         String networks = "CREATE TABLE IF NOT EXISTS " + NETWORK_TABLE + " ("
@@ -152,6 +153,24 @@ public final class SqlStorage {
                     + " (server_name, owner_uuid)");
         } catch (SQLException ignored) {
             // already present, or unsupported syntax on this server
+        }
+        addColumn("spawn_mode VARCHAR(16) DEFAULT NULL");
+    }
+
+    /**
+     * Adds a column to an existing table.
+     * <p>
+     * {@code CREATE TABLE IF NOT EXISTS} does nothing for a database that already exists, so a new
+     * per-spawner field needs this or it would only ever appear on fresh installs. Both SQLite and
+     * MySQL throw when the column is already there, which is the normal case and is ignored.
+     */
+    private void addColumn(String definition) {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("ALTER TABLE " + TABLE + " ADD COLUMN " + definition);
+            plugin.getLogger().info("Added column to " + TABLE + ": " + definition);
+        } catch (SQLException ignored) {
+            // Already present. Nothing to do and nothing worth logging.
         }
     }
 
@@ -310,7 +329,8 @@ public final class SqlStorage {
         statement.setLong(i++, spawner.producedItems());
         statement.setLong(i++, spawner.producedExp());
         statement.setDouble(i++, spawner.earnedMoney());
-        statement.setString(i, InventoryCodec.encode(spawner.storage().snapshot()));
+        statement.setString(i++, InventoryCodec.encode(spawner.storage().snapshot()));
+        statement.setString(i, spawner.spawnMode() == null ? null : spawner.spawnMode().name());
     }
 
     // ------------------------------------------------------------------ load
@@ -379,6 +399,11 @@ public final class SqlStorage {
         spawner.autoSell(rs.getInt("auto_sell") != 0);
         spawner.autoCollect(rs.getInt("auto_collect") != 0);
         spawner.linkedContainer(BlockKey.deserialize(rs.getString("linked_container")));
+        try {
+            spawner.spawnMode(dev.havoc.spawners.spawner.SpawnMode.of(rs.getString("spawn_mode"), null));
+        } catch (SQLException ignored) {
+            // Pre-1.5 row on a database the migration could not alter - it follows the server mode.
+        }
         spawner.network(rs.getString("network_name"));
         InventoryCodec.decodeFilters(rs.getString("filtered_items"), spawner.filtered());
         String sort = rs.getString("preferred_sort");

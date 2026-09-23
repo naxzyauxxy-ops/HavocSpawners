@@ -75,6 +75,11 @@ public final class Settings {
     public boolean requirePlayerNearby = true;
     public long maxCatchupTicks;
     public boolean stopWhenFull = true;
+    public dev.havoc.spawners.spawner.SpawnMode spawnMode = dev.havoc.spawners.spawner.SpawnMode.SIMULATED;
+    public boolean allowPlayerSpawnMode = true;
+    public int realMaxPerCycle = 4;
+    public int realMaxNearby = 24;
+    public int realSpawnRadius = 2;
 
     // breaking
     public boolean breakEnabled = true;
@@ -148,7 +153,7 @@ public final class Settings {
     public String importPassword = "";
 
     // presentation
-    public dev.havoc.spawners.ui.UiMode uiMode = dev.havoc.spawners.ui.UiMode.DIALOG;
+    public dev.havoc.spawners.ui.UiMode uiMode = dev.havoc.spawners.ui.UiMode.MODERN;
     public boolean uiAllowPlayerChoice = true;
 
     // legacy / foreign spawner items
@@ -282,8 +287,15 @@ public final class Settings {
         s.importUser = c.getString("import.mysql.username", "root");
         s.importPassword = c.getString("import.mysql.password", "");
 
-        s.uiMode = dev.havoc.spawners.ui.UiMode.of(c.getString("ui.mode", "DIALOG"),
-                dev.havoc.spawners.ui.UiMode.DIALOG);
+        s.spawnMode = dev.havoc.spawners.spawner.SpawnMode.of(c.getString("spawner.spawn-mode", "SIMULATED"),
+                dev.havoc.spawners.spawner.SpawnMode.SIMULATED);
+        s.allowPlayerSpawnMode = c.getBoolean("spawner.allow-player-spawn-mode", true);
+        s.realMaxPerCycle = Math.max(0, c.getInt("spawner.real.max-per-cycle", 4));
+        s.realMaxNearby = Math.max(1, c.getInt("spawner.real.max-nearby", 24));
+        s.realSpawnRadius = Math.max(1, c.getInt("spawner.real.spawn-radius", 2));
+
+        s.uiMode = dev.havoc.spawners.ui.UiMode.of(c.getString("ui.mode", "MODERN"),
+                dev.havoc.spawners.ui.UiMode.MODERN);
         s.uiAllowPlayerChoice = c.getBoolean("ui.allow-player-choice", true);
 
         s.legacyFallbackType = entityOf(c.getString("legacy.unknown-type", "PIG"), EntityType.PIG);

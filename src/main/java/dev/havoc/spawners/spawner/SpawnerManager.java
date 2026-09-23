@@ -204,12 +204,29 @@ public final class SpawnerManager {
                 continue;
             }
 
+            // REAL mode puts actual mobs in the world instead of banking what they would drop.
+            // World access has to happen on the region thread that owns the block.
+            if (effectiveMode(spawner, settings) == SpawnMode.REAL) {
+                var location = spawner.position().toLocation();
+                if (location != null) {
+                    int copies = cycles;
+                    plugin.sched().region(location, () -> RealSpawner.run(plugin, spawner, copies));
+                }
+                continue;
+            }
+
             LootResult result = engine.generate(spawner, cycles);
             if (result.isEmpty()) {
                 continue;
             }
             applyLoot(spawner, result);
         }
+    }
+
+    /** A spawner's own mode if it set one, otherwise the server's. */
+    public static SpawnMode effectiveMode(SpawnerData spawner, Settings settings) {
+        SpawnMode own = spawner.spawnMode();
+        return own != null ? own : settings.spawnMode;
     }
 
     private void applyLoot(SpawnerData spawner, LootResult result) {

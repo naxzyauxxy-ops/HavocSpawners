@@ -55,9 +55,12 @@ loot:
 # ----------------------------------------------------------------------------
 # Menu style
 #
+#   MODERN  A classic chest GUI. This is the default. Its buttons are laid out
+#           by gui_layouts/storage_gui.yml and gui_layouts/sell_confirm_gui.yml,
+#           in the same slot_N format the old plugin used - drop an existing
+#           layout file in and it keeps working.
 #   DIALOG  Paper's server-side dialogs. Real buttons, tooltips, sliders and
-#           text fields, and no inventory to desync. This is the default.
-#   MODERN  A classic chest GUI, for players who prefer the familiar shape.
+#           text fields, and no inventory to desync.
 #
 # Both drive exactly the same code - only the presentation differs - so a
 # server can switch at any time without touching spawner data.
@@ -66,7 +69,7 @@ loot:
 # so they always get native Bedrock forms (see the bedrock: section).
 # ----------------------------------------------------------------------------
 ui:
-  mode: DIALOG
+  mode: MODERN
   # Let players pick for themselves with /hs ui dialog|modern. Their choice is
   # remembered in ui_modes.yml and overrides the mode above. Set false to make
   # the server's choice the only one.
@@ -148,6 +151,33 @@ spawner:
   max-catchup: 0s
   # Stop generating once storage is full instead of voiding loot.
   stop-when-full: true
+
+  # --------------------------------------------------------------------------
+  # Spawn mode
+  #
+  #   SIMULATED  No mob ever exists. The drops a mob WOULD have made are worked
+  #              out and banked in the spawner's storage. This is what lets a
+  #              x26,000 stack cost the server nothing.
+  #   REAL       Real mobs are spawned into the world like a vanilla spawner,
+  #              and players kill them for their own drops. Nothing is banked.
+  #
+  # Players flip a single spawner between the two from its own menu, unless
+  # allow-player-spawn-mode is off. Switching never deletes anything: whatever
+  # a spawner already banked stays browsable and withdrawable, it just stops
+  # growing while that spawner is in REAL mode.
+  # --------------------------------------------------------------------------
+  spawn-mode: SIMULATED
+  allow-player-spawn-mode: true
+
+  # These caps matter. A stacked spawner's simulated mob count is enormous by
+  # design, and asking for that many REAL mobs would take the server down - so
+  # real spawning is capped per cycle and by how many are already standing
+  # around. Stacking a REAL spawner makes it reach the cap more reliably rather
+  # than exceed it.
+  real:
+    max-per-cycle: 4
+    max-nearby: 24
+    spawn-radius: 2
 
 breaking:
   enabled: true

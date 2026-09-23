@@ -5,7 +5,9 @@ import dev.havoc.spawners.config.Messages;
 import dev.havoc.spawners.econ.SellResult;
 import dev.havoc.spawners.feature.UpgradeTier;
 import dev.havoc.spawners.spawner.ItemSig;
+import dev.havoc.spawners.spawner.SpawnMode;
 import dev.havoc.spawners.spawner.SpawnerData;
+import dev.havoc.spawners.spawner.SpawnerManager;
 import dev.havoc.spawners.spawner.SpawnerItems;
 import dev.havoc.spawners.spawner.VirtualStorage;
 import dev.havoc.spawners.util.Numbers;
@@ -110,6 +112,19 @@ public final class SpawnerUi {
                     toggleRunning(p, spawner);
                     openMain(p, spawner);
                 }));
+        if (plugin.settings().allowPlayerSpawnMode) {
+            SpawnMode mode = SpawnerManager.effectiveMode(spawner, plugin.settings());
+            buttons.add(Ui.button(mode == SpawnMode.REAL
+                            ? "<color:" + Ui.WARN + ">\u2620 Real mobs</color>"
+                            : "<color:" + Ui.ACCENT + ">\u2699 Simulated</color>",
+                    mode == SpawnMode.REAL
+                            ? "Real mobs are spawned into the world - click for simulated loot"
+                            : "Loot is simulated into storage - click to spawn real mobs instead",
+                    100, p -> {
+                        toggleSpawnMode(p, spawner);
+                        openMain(p, spawner);
+                    }));
+        }
         if (plugin.settings().uiAllowPlayerChoice) {
             buttons.add(Ui.button("<color:" + Ui.FAINT + ">▦ Menu style</color>",
                     "Currently " + plugin.uiModes().modeFor(player).display()
@@ -137,6 +152,27 @@ public final class SpawnerUi {
         }
         plugin.storage().queueSave(spawner);
         plugin.messages().send(player, stopping ? "spawner.stopped" : "spawner.resumed");
+    }
+
+    /**
+     * Flips this spawner between simulated loot and real mobs.
+     * <p>
+     * Switching to REAL leaves everything already banked exactly where it is - the storage stays
+     * browsable and withdrawable, it just stops growing, so nobody loses a stockpile by trying the
+     * other mode out.
+     */
+    void toggleSpawnMode(Player player, SpawnerData spawner) {
+        if (!plugin.settings().allowPlayerSpawnMode) {
+            plugin.messages().send(player, "spawn-mode.locked", Messages.of(
+                    "mode", plugin.settings().spawnMode.display()));
+            return;
+        }
+        SpawnMode current = SpawnerManager.effectiveMode(spawner, plugin.settings());
+        SpawnMode next = current == SpawnMode.REAL ? SpawnMode.SIMULATED : SpawnMode.REAL;
+        spawner.spawnMode(next);
+        spawner.lastSpawnMillis(System.currentTimeMillis());
+        plugin.storage().queueSave(spawner);
+        plugin.messages().send(player, "spawn-mode.changed", Messages.of("mode", next.display()));
     }
 
     /** Flips this player between the dialog and chest presentations, then redraws where they were. */
@@ -653,6 +689,61 @@ public final class SpawnerUi {
         plugin.messages().send(player, "sell.success", Messages.of(
                 "items", Numbers.plain(result.itemsSold()),
                 "money", plugin.economy().format(result.net())));
+    }
+
+    /** Re-sorts storage biggest-first, honouring whatever material was pinned to the top. */
+    void sortStorage(SpawnerData spawner) {
+        spawner.storage().sortPreferring(spawner.preferredSort());
+        plugin.storage().queueSave(spawner);
+    }
+
+    /** Claims XP without the "nothing stored" complaint or the redraw - for combined buttons. */
+    void claimExpQuietly(Player player, SpawnerData spawner) {
+        long exp = spawner.storedExp();
+        if (exp <= 0L) {
+            return;
+        }
+        spawner.storedExp(0L);
+        plugin.storage().queueSave(spawner);
+        player.giveExp((int) Math.min(Integer.MAX_VALUE, exp), plugin.settings().allowExpMending);
+        plugin.messages().send(player, "exp.claimed", Messages.of("exp", Numbers.plain(exp)));
+    }
+
+    /**
+     * Moves one storage page straight into the player's inventory.
+     * <p>
+     * Bounded by what the inventory can hold rather than by the page: whatever does not fit goes
+     * back into storage, so nothing is ever destroyed by a full inventory.
+     */
+    void takePage(Player player, SpawnerData spawner, int page) {
+        long from = (long) Math.max(0, page) * VirtualStorage.SLOTS_PER_PAGE;
+        List<ItemStack> stacks = spawner.storage().slice(from,
+                from + VirtualStorage.SLOTS_PER_PAGE - 1, true);
+        if (stacks.isEmpty()) {
+            plugin.messages().send(player, "storage.empty");
+            return;
+        }
+        long delivered = 0L;
+        long returned = 0L;
+        Map<Integer, ItemStack> leftovers =
+                player.getInventory().addItem(stacks.toArray(new ItemStack[0]));
+        for (ItemStack stack : stacks) {
+            delivered += stack.getAmount();
+        }
+        for (ItemStack leftover : leftovers.values()) {
+            if (leftover == null) {
+                continue;
+            }
+            returned += leftover.getAmount();
+            spawner.storage().addUnchecked(ItemSig.of(leftover), leftover.getAmount());
+        }
+        plugin.storage().queueSave(spawner);
+        if (returned > 0L) {
+            plugin.messages().send(player, "inventory-full");
+        }
+        plugin.messages().send(player, "storage.withdrew", Messages.of(
+                "amount", Numbers.plain(delivered - returned),
+                "item", "items"));
     }
 
     void claimExp(Player player, SpawnerData spawner) {
