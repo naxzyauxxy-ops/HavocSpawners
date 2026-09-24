@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.havoc"
-version = "2.0.1"
+version = "2.0.2"
 description = "Virtual spawners for Paper 1.21.x - every screen is a chest menu"
 
 java {
@@ -35,33 +35,36 @@ dependencies {
  * Files that older versions shipped and this one does not.
  *
  * Updating by extracting a release zip over an existing checkout cannot delete anything, so a class
- * that was removed stays behind and breaks the build against the code that replaced it. Rather than
- * failing with "cannot find symbol" in a file nobody remembers, this says exactly what to delete.
+ * that was removed stays behind and breaks the build against the code that replaced it. The build
+ * deletes them itself rather than failing and asking someone to do it by hand - the list is explicit
+ * and only ever names files this project has already removed, so there is nothing here to lose.
  */
 val removedSources = listOf(
     "src/main/java/dev/havoc/spawners/ui/UiMode.java",
     "src/main/java/dev/havoc/spawners/ui/UiPreferences.java"
 )
 
-val checkStaleSources by tasks.registering {
-    // Captured at configuration time so the check stays configuration-cache safe.
+val removeStaleSources by tasks.registering {
+    // Captured at configuration time so the task stays configuration-cache safe.
     val root = layout.projectDirectory
     val paths = removedSources
     doLast {
         val stale = paths.filter { root.file(it).asFile.exists() }
-        if (stale.isNotEmpty()) {
-            throw GradleException(
-                "Leftover files from an older version are still present and will not compile.\n" +
-                    "Delete them and build again:\n" +
-                    stale.joinToString("\n") { "  rm $it" }
-            )
+        if (stale.isEmpty()) {
+            return@doLast
         }
+        logger.lifecycle("Deleting {} leftover file(s) from an older version:", stale.size)
+        stale.forEach {
+            root.file(it).asFile.delete()
+            logger.lifecycle("  {}", it)
+        }
+        logger.lifecycle("Commit those deletions so they stop coming back on every checkout.")
     }
 }
 
 tasks {
     compileJava {
-        dependsOn(checkStaleSources)
+        dependsOn(removeStaleSources)
         options.encoding = "UTF-8"
         options.release.set(21)
     }
