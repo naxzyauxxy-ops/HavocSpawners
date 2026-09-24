@@ -151,7 +151,7 @@ so an icon can never be taken out and a real item can never be shoved in.
 
 ## Installing
 
-1. Drop `HavocSpawners-2.0.0.jar` into `plugins/`.
+1. Drop `HavocSpawners-2.0.1.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -322,7 +322,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-2.0.0.jar
+gradle build        # -> build/libs/HavocSpawners-2.0.1.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an

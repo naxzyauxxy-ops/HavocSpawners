@@ -157,9 +157,9 @@ public final class Menu implements InventoryHolder {
         if (!lore.isEmpty()) {
             meta.lore(lore);
         }
-        // Armour values, durability bars and potion effects are noise on a menu button.
-        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP,
-                ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_DYE);
+        // Armour values and durability bars are noise on a menu button. HIDE_ADDITIONAL_TOOLTIP is
+        // deliberately not used: Paper deprecated it, and the icons here carry no extra tooltip.
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_DYE);
         item.setItemMeta(meta);
         return item;
     }

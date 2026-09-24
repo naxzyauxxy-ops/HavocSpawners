@@ -4,8 +4,8 @@ plugins {
 }
 
 group = "dev.havoc"
-version = "2.0.0"
-description = "Dialog-driven virtual spawners for Paper 1.21.x"
+version = "2.0.1"
+description = "Virtual spawners for Paper 1.21.x - every screen is a chest menu"
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))
@@ -18,8 +18,6 @@ repositories {
 }
 
 dependencies {
-    // Paper 1.21.6+ is required: the Dialog API (io.papermc.paper.registry.data.dialog)
-    // does not exist before that version.
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
 
     // Optional integration - never required at runtime.
@@ -33,8 +31,37 @@ dependencies {
     implementation("org.slf4j:slf4j-nop:2.0.16")
 }
 
+/**
+ * Files that older versions shipped and this one does not.
+ *
+ * Updating by extracting a release zip over an existing checkout cannot delete anything, so a class
+ * that was removed stays behind and breaks the build against the code that replaced it. Rather than
+ * failing with "cannot find symbol" in a file nobody remembers, this says exactly what to delete.
+ */
+val removedSources = listOf(
+    "src/main/java/dev/havoc/spawners/ui/UiMode.java",
+    "src/main/java/dev/havoc/spawners/ui/UiPreferences.java"
+)
+
+val checkStaleSources by tasks.registering {
+    // Captured at configuration time so the check stays configuration-cache safe.
+    val root = layout.projectDirectory
+    val paths = removedSources
+    doLast {
+        val stale = paths.filter { root.file(it).asFile.exists() }
+        if (stale.isNotEmpty()) {
+            throw GradleException(
+                "Leftover files from an older version are still present and will not compile.\n" +
+                    "Delete them and build again:\n" +
+                    stale.joinToString("\n") { "  rm $it" }
+            )
+        }
+    }
+}
+
 tasks {
     compileJava {
+        dependsOn(checkStaleSources)
         options.encoding = "UTF-8"
         options.release.set(21)
     }
