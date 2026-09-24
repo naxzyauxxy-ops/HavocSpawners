@@ -6,7 +6,7 @@
 #  Muted text  #9b9ba1   ·   soft red #ff8a95   ·   body text #e8e8ea
 #
 #  Placeholders are written as <name> and are listed above each message.
-#  Dialog colours live in the theme: block of config.yml.
+#  Menu colours live in the theme: block of config.yml.
 # ============================================================================
 
 prefix: "<gradient:#ff2b3d:#ffffff><bold>Havoc</bold></gradient> <dark_gray>»</dark_gray> "
@@ -142,15 +142,6 @@ import:
 fixblocks:
   # <repaired> <recovered> <skipped>
   done: "<color:#ffffff>Repaired <color:#ff2b3d><repaired></color> spawner blocks and recovered <color:#ff2b3d><recovered></color> mis-adopted types. <color:#9b9ba1><skipped> were in unloaded chunks - fly near them and run it again.</color></color>"
-
-ui:
-  usage: "<color:#ff8a95>/hs ui (dialog | modern | default)</color>"
-  # <mode> <server>
-  current: "<color:#ffffff>Your menus: <color:#ff2b3d><mode></color>. <color:#9b9ba1>Server default: <server>. Change it with /hs ui dialog or /hs ui modern.</color></color>"
-  # <mode>
-  changed: "<color:#ffffff>Menus switched to <color:#ff2b3d><mode></color>.</color>"
-  reset: "<color:#ffffff>Using the server default again: <color:#ff2b3d><mode></color>.</color>"
-  locked: "<color:#ff8a95>The server picks the menu style here - it is set to <white><mode></white>.</color>"
 
 spawn-mode:
   # <mode>

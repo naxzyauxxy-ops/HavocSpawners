@@ -97,7 +97,7 @@ public final class DropService {
     }
 
     /**
-     * @param onFinish run once the last stack has left the spawner - used by the dialogs to refresh
+     * @param onFinish run once the last stack has left the spawner - used by the menus to refresh
      *                 themselves in place instead of closing
      */
     public boolean dropPages(Player player, SpawnerData spawner, int firstPage, int lastPage,

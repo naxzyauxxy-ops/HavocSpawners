@@ -12,9 +12,9 @@ import java.util.function.BiConsumer;
 /**
  * Asks a player to type something in chat.
  * <p>
- * A chest inventory has no text field, so the one thing the dialogs can do that a chest cannot is
- * free text - naming a network. Rather than dropping that feature in modern mode, the menu closes
- * and the next thing the player types is captured here.
+ * A chest inventory has no text field, so the one thing the menus cannot do on their own is free
+ * text - naming a network. Rather than dropping that feature, the menu closes and the next thing
+ * the player types is captured here.
  * <p>
  * The pending prompt is cleared on answer, on cancel and on quit, so a player can never be left
  * with their chat silently swallowed.

@@ -24,7 +24,7 @@ public final class Settings {
     public String language = "en_US";
     public boolean debug;
 
-    // theme - drives every dialog and chat colour, reloadable without a rebuild
+    // theme - drives every menu and chat colour, reloadable without a rebuild
     public String themeAccent = "#ff2b3d";
     public String themeAccentDim = "#8f0f1c";
     public String themeGood = "#ffffff";
@@ -151,10 +151,6 @@ public final class Settings {
     public String importDatabase = "smartspawner";
     public String importUser = "root";
     public String importPassword = "";
-
-    // presentation
-    public dev.havoc.spawners.ui.UiMode uiMode = dev.havoc.spawners.ui.UiMode.MODERN;
-    public boolean uiAllowPlayerChoice = true;
 
     // legacy / foreign spawner items
     public EntityType legacyFallbackType = EntityType.PIG;
@@ -293,10 +289,6 @@ public final class Settings {
         s.realMaxPerCycle = Math.max(0, c.getInt("spawner.real.max-per-cycle", 4));
         s.realMaxNearby = Math.max(1, c.getInt("spawner.real.max-nearby", 24));
         s.realSpawnRadius = Math.max(1, c.getInt("spawner.real.spawn-radius", 2));
-
-        s.uiMode = dev.havoc.spawners.ui.UiMode.of(c.getString("ui.mode", "MODERN"),
-                dev.havoc.spawners.ui.UiMode.MODERN);
-        s.uiAllowPlayerChoice = c.getBoolean("ui.allow-player-choice", true);
 
         s.legacyFallbackType = entityOf(c.getString("legacy.unknown-type", "PIG"), EntityType.PIG);
         s.legacyWarnUnknown = c.getBoolean("legacy.warn-on-unknown", true);

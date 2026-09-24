@@ -1,39 +1,16 @@
 package dev.havoc.spawners.ui;
 
-import dev.havoc.spawners.util.Text;
-import io.papermc.paper.dialog.Dialog;
-import io.papermc.paper.registry.data.dialog.ActionButton;
-import io.papermc.paper.registry.data.dialog.DialogBase;
-import io.papermc.paper.registry.data.dialog.action.DialogAction;
-import io.papermc.paper.registry.data.dialog.body.DialogBody;
-import io.papermc.paper.registry.data.dialog.body.ItemDialogBody;
-import io.papermc.paper.registry.data.dialog.type.DialogType;
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickCallback;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-
-import java.time.Duration;
-import java.util.List;
-import java.util.function.Consumer;
+import dev.havoc.spawners.config.Settings;
 
 /**
- * Small facade over Paper's Dialog API.
+ * The shared palette, and the one drawing primitive that is not an item.
  * <p>
- * Everything the plugin shows the player is a server-side dialog: no chest inventories, no click
- * slot maths, no inventory desync. Buttons carry real callbacks, so a dialog can be rebuilt with
- * fresh numbers simply by showing a new one.
+ * Every colour the plugin draws - menu titles, button names, tooltips and chat - comes from here,
+ * loaded from the {@code theme:} block of config.yml on enable and on every reload, so re-skinning
+ * the plugin never needs a rebuild. The defaults are the red/white house theme.
  */
 public final class Ui {
 
-    /**
-     * Shared palette so every screen reads as one plugin.
-     * <p>
-     * These are loaded from the {@code theme:} block of config.yml by {@link #applyTheme} on enable
-     * and on every reload, so re-skinning the plugin never needs a rebuild. The defaults below are
-     * the red/white house theme.
-     */
     public static String ACCENT = "#ff2b3d";
     public static String ACCENT_DIM = "#8f0f1c";
     public static String GOOD = "#ffffff";
@@ -42,7 +19,10 @@ public final class Ui {
     public static String INK = "#e8e8ea";
     public static String FAINT = "#9b9ba1";
 
-    public static void applyTheme(dev.havoc.spawners.config.Settings settings) {
+    private Ui() {
+    }
+
+    public static void applyTheme(Settings settings) {
         ACCENT = settings.themeAccent;
         ACCENT_DIM = settings.themeAccentDim;
         GOOD = settings.themeGood;
@@ -52,139 +32,21 @@ public final class Ui {
         FAINT = settings.themeFaint;
     }
 
-    private static final ClickCallback.Options CALLBACK_OPTIONS = ClickCallback.Options.builder()
-            .uses(ClickCallback.UNLIMITED_USES)
-            .lifetime(Duration.ofMinutes(30))
-            .build();
-
-    private Ui() {
-    }
-
-    public static Component title(String text) {
-        return Text.mm("<gradient:" + ACCENT + ":" + ACCENT_DIM + "><bold>" + text + "</bold></gradient>");
-    }
-
-    public static Component line(String miniMessage) {
-        return Text.mm(miniMessage);
-    }
-
-    /** "Label: value" body line with the plugin's colours already applied. */
-    public static DialogBody stat(String label, String value) {
-        return DialogBody.plainMessage(Text.mm(
-                "<color:" + FAINT + ">" + label + "</color> <color:" + INK + ">" + value + "</color>"), 320);
-    }
-
-    public static DialogBody text(String miniMessage) {
-        return DialogBody.plainMessage(Text.mm(miniMessage), 320);
-    }
-
-    public static DialogBody narrow(String miniMessage) {
-        return DialogBody.plainMessage(Text.mm(miniMessage), 200);
-    }
-
-    public static ItemDialogBody item(ItemStack stack, String description) {
-        return DialogBody.item(stack)
-                .description(DialogBody.plainMessage(Text.mm(description), 240))
-                .showDecorations(true)
-                .showTooltip(true)
-                .width(24)
-                .height(24)
-                .build();
-    }
-
-    public static ItemDialogBody icon(ItemStack stack) {
-        return DialogBody.item(stack)
-                .showDecorations(true)
-                .showTooltip(true)
-                .width(32)
-                .height(32)
-                .build();
-    }
-
-    /** A button that runs {@code onClick} on the clicking player. */
-    public static ActionButton button(String label, String tooltip, int width, Consumer<Player> onClick) {
-        DialogAction action = DialogAction.customClick((response, audience) -> {
-            Player player = playerOf(audience);
-            if (player != null) {
-                onClick.accept(player);
+    /**
+     * A proportion bar, as MiniMessage.
+     * <p>
+     * Filled segments take the given colour, the remainder is drawn faint, so a tooltip can show
+     * "how full is this" at a glance rather than as two numbers to compare.
+     */
+    public static String bar(double ratio, int width, String colour) {
+        int filled = (int) Math.round(Math.max(0.0D, Math.min(1.0D, ratio)) * width);
+        StringBuilder builder = new StringBuilder("<color:").append(colour).append('>');
+        for (int i = 0; i < width; i++) {
+            if (i == filled) {
+                builder.append("</color><color:").append(FAINT).append('>');
             }
-        }, CALLBACK_OPTIONS);
-        return ActionButton.builder(Text.mm(label))
-                .tooltip(tooltip == null ? null : Text.mm(tooltip))
-                .width(width)
-                .action(action)
-                .build();
-    }
-
-    /** A button whose callback also receives the dialog's input values. */
-    public static ActionButton input(String label, String tooltip, int width,
-                                     java.util.function.BiConsumer<Player, io.papermc.paper.dialog.DialogResponseView> onClick) {
-        DialogAction action = DialogAction.customClick((response, audience) -> {
-            Player player = playerOf(audience);
-            if (player != null) {
-                onClick.accept(player, response);
-            }
-        }, CALLBACK_OPTIONS);
-        return ActionButton.builder(Text.mm(label))
-                .tooltip(tooltip == null ? null : Text.mm(tooltip))
-                .width(width)
-                .action(action)
-                .build();
-    }
-
-    /** A plain label with no action - used to keep grid layouts even. */
-    public static ActionButton plain(String label, int width) {
-        return ActionButton.builder(Text.mm(label)).width(width).build();
-    }
-
-    public static Player playerOf(Audience audience) {
-        return audience instanceof Player player ? player : null;
-    }
-
-    public static DialogBase base(String titleText, List<? extends DialogBody> body,
-                                  List<? extends io.papermc.paper.registry.data.dialog.input.DialogInput> inputs,
-                                  boolean stayOpen) {
-        return DialogBase.builder(title(titleText))
-                .canCloseWithEscape(true)
-                .pause(false)
-                .afterAction(stayOpen
-                        ? DialogBase.DialogAfterAction.NONE
-                        : DialogBase.DialogAfterAction.CLOSE)
-                .body(body)
-                .inputs(inputs)
-                .build();
-    }
-
-    public static Dialog multi(DialogBase base, List<ActionButton> buttons, ActionButton exit, int columns) {
-        // A multi-action dialog needs at least one button; screens can legitimately end up with none
-        // (a fully upgraded spawner, a filter list with nothing in it).
-        List<ActionButton> safe = buttons.isEmpty()
-                ? List.of(plain("<color:" + FAINT + ">—</color>", 90))
-                : buttons;
-        DialogType type = DialogType.multiAction(safe)
-                .exitAction(exit)
-                .columns(Math.max(1, columns))
-                .build();
-        return Dialog.create(factory -> factory.empty().base(base).type(type));
-    }
-
-    public static Dialog notice(DialogBase base, ActionButton button) {
-        return Dialog.create(factory -> factory.empty().base(base).type(DialogType.notice(button)));
-    }
-
-    public static Dialog confirm(DialogBase base, ActionButton yes, ActionButton no) {
-        return Dialog.create(factory -> factory.empty().base(base).type(DialogType.confirmation(yes, no)));
-    }
-
-    /** Progress bar rendered with block characters, e.g. ▰▰▰▱▱▱▱▱▱▱ */
-    public static String bar(double ratio, int cells, String filledColor) {
-        int filled = (int) Math.round(Math.max(0.0D, Math.min(1.0D, ratio)) * cells);
-        StringBuilder builder = new StringBuilder();
-        builder.append("<color:").append(filledColor).append('>');
-        builder.append("▰".repeat(filled));
-        builder.append("</color><color:").append(FAINT).append('>');
-        builder.append("▱".repeat(Math.max(0, cells - filled)));
-        builder.append("</color>");
-        return builder.toString();
+            builder.append('|');
+        }
+        return builder.append("</color>").toString();
     }
 }

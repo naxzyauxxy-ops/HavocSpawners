@@ -20,7 +20,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Locale;
 
-/** Right-click behaviour: open the dialog, stack, change type, or finish a container link. */
+/** Right-click behaviour: open the menu, stack, or change the spawner type. */
 public final class InteractListener implements Listener {
 
     private final HavocSpawners plugin;

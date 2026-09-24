@@ -10,7 +10,7 @@ import java.util.List;
  * @param key       entity type name, or material name for item spawners
  * @param exp       experience granted per simulated mob
  * @param entries   possible drops
- * @param headIcon  material used to represent this spawner in dialogs
+ * @param headIcon  material used to represent this spawner in the menus
  */
 public record LootTable(String key, int exp, List<LootEntry> entries, Material headIcon) {
 

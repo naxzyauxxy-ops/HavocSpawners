@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Named groups of spawners.
  * <p>
- * A network is the unit the aggregate dialog works on: one button sells, collects or drains every
+ * A network is the unit the aggregate screen works on: one button sells, collects or drains every
  * spawner in it, and the analytics panel rolls their numbers up.
  */
 public final class NetworkService {

@@ -6,7 +6,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
 
-/** Number and duration formatting shared by every dialog. */
+/** Number and duration formatting shared by every screen. */
 public final class Numbers {
 
     private static final DecimalFormat PLAIN =
@@ -28,7 +28,7 @@ public final class Numbers {
         return MONEY.format(value);
     }
 
-    /** 1 234 567 -> "1.23M". Used where dialog width is tight. */
+    /** 1 234 567 -> "1.23M". Used where tooltip width is tight. */
     public static String compact(long value) {
         if (value > -1000 && value < 1000) {
             return Long.toString(value);

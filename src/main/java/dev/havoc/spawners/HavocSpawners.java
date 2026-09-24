@@ -40,10 +40,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 /**
- * HavocSpawners - virtual, dialog-driven spawners for Paper 1.21.6+.
+ * HavocSpawners - virtual spawners for Paper 1.21.x, driven entirely by chest menus.
  * <p>
- * Requires the Paper Dialog API, which shipped in 1.21.6. The plugin refuses to enable on anything
- * older rather than half-working.
+ * Every Java screen is a chest inventory and every Bedrock screen is a native form, so there is no
+ * client-side requirement beyond Paper itself.
  */
 public final class HavocSpawners extends JavaPlugin {
 
@@ -56,7 +56,6 @@ public final class HavocSpawners extends JavaPlugin {
     private SpawnerItems items;
     private dev.havoc.spawners.migrate.ItemMigrator itemMigrator;
     private dev.havoc.spawners.ui.ChestUi chestUi;
-    private dev.havoc.spawners.ui.UiPreferences uiModes;
     private dev.havoc.spawners.ui.ChatPrompt chatPrompt;
     private dev.havoc.spawners.ui.layout.GuiLayouts guiLayouts;
 
@@ -83,12 +82,6 @@ public final class HavocSpawners extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        if (!hasDialogApi()) {
-            getLogger().severe("HavocSpawners needs Paper 1.21.6 or newer (the Dialog API is missing).");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
-
         saveDefaultConfig();
         saveResource("lang/en_US.yml", false);
 
@@ -112,7 +105,6 @@ public final class HavocSpawners extends JavaPlugin {
 
         this.items = new SpawnerItems(this);
         this.itemMigrator = new dev.havoc.spawners.migrate.ItemMigrator(this);
-        this.uiModes = new dev.havoc.spawners.ui.UiPreferences(this);
         this.chatPrompt = new dev.havoc.spawners.ui.ChatPrompt(this);
         this.guiLayouts = new dev.havoc.spawners.ui.layout.GuiLayouts();
         this.guiLayouts.reload(this);
@@ -169,9 +161,6 @@ public final class HavocSpawners extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (uiModes != null) {
-            uiModes.save();
-        }
         if (dropService != null) {
             dropService.cancelAll();
         }
@@ -193,15 +182,6 @@ public final class HavocSpawners extends JavaPlugin {
             storage.shutdown();
         }
         getLogger().info("HavocSpawners disabled.");
-    }
-
-    private boolean hasDialogApi() {
-        try {
-            Class.forName("io.papermc.paper.registry.data.dialog.DialogBase");
-            return true;
-        } catch (ClassNotFoundException ex) {
-            return false;
-        }
     }
 
     private void startFlushTask() {
@@ -265,11 +245,6 @@ public final class HavocSpawners extends JavaPlugin {
     /** The chest-GUI presentation, used when a player is in MODERN mode. */
     public dev.havoc.spawners.ui.ChestUi chestUi() {
         return chestUi;
-    }
-
-    /** Which presentation each player has chosen. */
-    public dev.havoc.spawners.ui.UiPreferences uiModes() {
-        return uiModes;
     }
 
     /** Chest-GUI button layouts, read from gui_layouts/. */

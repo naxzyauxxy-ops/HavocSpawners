@@ -6,8 +6,10 @@ import dev.havoc.spawners.econ.SellResult;
 import dev.havoc.spawners.feature.AutomationService;
 import dev.havoc.spawners.feature.UpgradeTier;
 import dev.havoc.spawners.spawner.ItemSig;
+import dev.havoc.spawners.spawner.SpawnMode;
 import dev.havoc.spawners.spawner.SpawnerData;
 import dev.havoc.spawners.spawner.SpawnerItems;
+import dev.havoc.spawners.spawner.SpawnerManager;
 import dev.havoc.spawners.ui.layout.GuiButton;
 import dev.havoc.spawners.ui.layout.GuiLayout;
 import dev.havoc.spawners.util.Numbers;
@@ -16,19 +18,19 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * The "modern" presentation: every spawner screen as a chest GUI.
+ * Every player-facing screen, as a chest GUI.
  * <p>
- * This is a second skin, not a second plugin. Every button here calls the same package-private
- * action on {@link SpawnerUi} that the dialog button calls, so the two presentations cannot drift:
- * a fix to withdrawing, selling or stacking lands in both at once. Only the layout differs.
- * <p>
- * Where a chest genuinely cannot do what a dialog does - free text, and a slider for an arbitrary
- * number - it is replaced rather than dropped: preset amount buttons instead of a slider, and a
- * chat prompt instead of a text field.
+ * All fifteen screens share one visual language so the plugin reads as a single thing rather than as
+ * a pile of chest inventories: an accent frame, a dark interior, a centred hero tile carrying the
+ * numbers, buttons on the interior rows, and Back and Close always in the same place on the bottom
+ * row. Lore uses one label/value grid throughout, with a bar wherever something is a proportion.
  */
 public final class ChestUi {
 
@@ -41,108 +43,149 @@ public final class ChestUi {
         this.plugin = plugin;
     }
 
-    private SpawnerUi dialogs() {
+    private SpawnerUi actions() {
         return plugin.spawnerUi();
     }
 
     // ------------------------------------------------------------------ main
 
     public void openMain(Player player, SpawnerData spawner) {
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Havoc Spawner</color> <color:" + Ui.FAINT + ">· "
-                + spawner.displayType() + "</color>", 5, true);
+        Menu menu = Menu.panel(title(spawner.displayType()), 6);
+        menu.set(4, hero(spawner));
 
-        UpgradeTier tier = plugin.upgrades().tier(spawner.level());
-        long used = spawner.storage().usedSlots();
-        menu.set(4, Menu.decorate(dialogs().iconStack(spawner),
-                "<color:" + Ui.ACCENT + "><bold>" + spawner.displayType() + "</bold></color> "
-                        + "<color:" + Ui.FAINT + ">×" + Numbers.plain(spawner.stackSize()) + "</color>",
-                stat("Tier", tier.name() + " (level " + spawner.level() + ")"),
-                stat("Storage", Numbers.compact(used) + " / " + Numbers.compact(spawner.maxSlots()) + " slots"),
-                stat("Items held", Numbers.plain(spawner.storage().totalItems())
-                        + " across " + Numbers.plain(spawner.storage().pageCount()) + " pages"),
-                stat("Experience", Numbers.plain(spawner.storedExp()) + " / "
-                        + Numbers.plain(spawner.maxStoredExp())),
-                stat("Cycle", Numbers.duration(spawner.spawnDelayTicks() * 50L)
-                        + " · " + spawner.minMobs() + "-" + spawner.maxMobs() + " per cycle"),
-                stat("Status", dialogs().statusLine(spawner))));
-
-        menu.set(19, Menu.icon(Material.CHEST, "<color:" + Ui.ACCENT + ">Storage</color>",
-                        hint("Browse and withdraw what this spawner produced")),
+        menu.set(10, button(Material.CHEST, Ui.ACCENT, "Storage",
+                        kv("Holding", Numbers.plain(spawner.storage().totalItems()) + " items"),
+                        kv("Pages", Numbers.plain(spawner.storage().pageCount())),
+                        tip("Browse and withdraw")),
                 p -> openStorage(p, spawner, 0));
-        menu.set(20, Menu.icon(Material.EXPERIENCE_BOTTLE, "<color:" + Ui.GOOD + ">Claim XP</color>",
-                        stat("Stored", Numbers.plain(spawner.storedExp())), hint("Click to take it")),
-                p -> dialogs().claimExp(p, spawner));
-        menu.set(21, Menu.icon(Material.GOLD_INGOT, "<color:" + Ui.GOOD + ">Sell all</color>",
-                        hint("Sell everything in storage")),
+
+        ItemStack xp = button(Material.EXPERIENCE_BOTTLE, Ui.GOOD, "Claim experience",
+                kv("Stored", Numbers.plain(spawner.storedExp()) + " / "
+                        + Numbers.plain(spawner.maxStoredExp())),
+                bar(ratio(spawner.storedExp(), spawner.maxStoredExp())),
+                tip("Take it all"));
+        menu.set(12, spawner.storedExp() > 0 ? Menu.glow(xp) : xp, p -> actions().claimExp(p, spawner));
+
+        double value = plugin.sell().preview(spawner).net();
+        menu.set(14, button(Material.GOLD_INGOT, Ui.GOOD, "Sell everything",
+                        kv("Worth", plugin.economy().format(value)),
+                        tip("Sell the whole storage")),
                 p -> openSell(p, spawner));
-        menu.set(22, Menu.icon(Material.SPAWNER, "<color:" + Ui.ACCENT + ">Stack</color>",
-                        stat("Stacked", Numbers.plain(spawner.stackSize()) + " / "
-                                + Numbers.plain(spawner.maxStackSize())),
-                        hint("Add or remove stacked spawners")),
+
+        menu.set(16, button(Material.SPAWNER, Ui.ACCENT, "Stack",
+                        kv("Stacked", "×" + Numbers.plain(spawner.stackSize())),
+                        kv("Limit", Numbers.plain(spawner.maxStackSize())),
+                        bar(ratio(spawner.stackSize(), spawner.maxStackSize())),
+                        tip("Add or remove spawners")),
                 p -> openStack(p, spawner));
 
-        int slot = 23;
         if (plugin.settings().upgradesEnabled) {
-            menu.set(slot++, Menu.icon(Material.ANVIL, "<color:" + Ui.WARN + ">Upgrade</color>",
-                            hint("Spend money to make this spawner better")),
+            UpgradeTier tier = plugin.upgrades().tier(spawner.level());
+            UpgradeTier next = plugin.upgrades().next(spawner.level());
+            menu.set(20, button(Material.ANVIL, Ui.WARN, "Upgrades",
+                            kv("Tier", tier.name() + " · level " + spawner.level()),
+                            next == null ? kv("Next", "fully upgraded")
+                                    : kv("Next", next.name() + " · " + plugin.economy().format(next.cost())),
+                            tip(next == null ? "Nothing left to buy" : "Spend money on this spawner")),
                     p -> openUpgrade(p, spawner));
         }
         if (plugin.settings().automationEnabled) {
-            menu.set(slot++, Menu.icon(Material.HOPPER, "<color:" + Ui.ACCENT + ">Automation</color>",
-                            stat("Auto-sell", onOff(spawner.autoSell())),
-                            stat("Auto-collect", onOff(spawner.autoCollect()))),
-                    p -> openAutomation(p, spawner));
+            boolean on = spawner.autoSell() || spawner.autoCollect();
+            ItemStack icon = button(Material.HOPPER, Ui.ACCENT, "Automation",
+                    kv("Auto-sell", onOff(spawner.autoSell())),
+                    kv("Auto-collect", onOff(spawner.autoCollect())),
+                    kv("Earned", plugin.economy().format(spawner.earnedMoney())),
+                    tip("Run it while you are offline"));
+            menu.set(22, on ? Menu.glow(icon) : icon, p -> openAutomation(p, spawner));
         }
         if (plugin.settings().networksEnabled) {
-            menu.set(slot++, Menu.icon(Material.CHAIN, "<color:" + Ui.ACCENT + ">Network</color>",
-                            stat("This spawner", spawner.network() == null ? "unassigned" : spawner.network())),
+            ItemStack icon = button(Material.CHAIN, Ui.ACCENT, "Network",
+                    kv("This spawner", spawner.network() == null ? "unassigned" : spawner.network()),
+                    tip("Control many spawners at once"));
+            menu.set(24, spawner.network() != null ? Menu.glow(icon) : icon,
                     p -> openNetwork(p, spawner));
         }
         if (plugin.settings().analyticsEnabled) {
-            menu.set(slot, Menu.icon(Material.PAPER, "<color:" + Ui.INK + ">Analytics</color>",
-                            stat("Items/h", Numbers.compact((long) plugin.analytics().itemsPerHour(spawner))),
-                            stat("Earnings/h", plugin.economy().format(
-                                    plugin.analytics().moneyPerHour(spawner)))),
+            menu.set(29, button(Material.CLOCK, Ui.INK, "Analytics",
+                            kv("Items/h", Numbers.compact((long) plugin.analytics().itemsPerHour(spawner))),
+                            kv("Earnings/h", plugin.economy().format(
+                                    plugin.analytics().moneyPerHour(spawner))),
+                            tip("Production history")),
                     p -> openAnalytics(p, spawner));
         }
+        menu.set(31, button(Material.COMPARATOR, Ui.INK, "Drop filters",
+                        kv("Filtered", spawner.filtered().isEmpty()
+                                ? "nothing" : Numbers.plain(spawner.filtered().size()) + " materials"),
+                        tip("Throw junk away as it drops")),
+                p -> openFilters(p, spawner, 0));
+        menu.set(33, button(Material.MINECART, Ui.WARN, "Bulk withdraw",
+                        kv("Pages held", Numbers.plain(spawner.storage().pageCount())),
+                        tip("Empty many pages at once")),
+                p -> openBulkDrop(p, spawner));
 
-        menu.set(37, Menu.icon(spawner.stopped() ? Material.LIME_DYE : Material.REDSTONE_TORCH,
-                        spawner.stopped()
-                                ? "<color:" + Ui.GOOD + ">Turn on</color>"
-                                : "<color:" + Ui.BAD + ">Turn off</color>",
-                        stat("Currently", spawner.stopped() ? "stopped" : "running"),
-                        hint(spawner.stopped()
-                                ? "Start producing again - nothing stored is lost"
-                                : "Stop producing. Storage is kept either way")),
-                p -> {
-                    dialogs().toggleRunning(p, spawner);
-                    openMain(p, spawner);
-                });
+        boolean running = !spawner.stopped();
+        ItemStack power = button(running ? Material.LIME_DYE : Material.GRAY_DYE,
+                running ? Ui.GOOD : Ui.BAD, running ? "Running" : "Turned off",
+                kv("Status", actionsStatus(spawner)),
+                note(running ? "Producing normally" : "Storage is kept while it is off"),
+                tip(running ? "Click to turn off" : "Click to turn on"));
+        menu.set(38, running ? Menu.glow(power) : power, p -> {
+            actions().toggleRunning(p, spawner);
+            openMain(p, spawner);
+        });
+
         if (plugin.settings().allowPlayerSpawnMode) {
-            var mode = dev.havoc.spawners.spawner.SpawnerManager
-                    .effectiveMode(spawner, plugin.settings());
-            boolean real = mode == dev.havoc.spawners.spawner.SpawnMode.REAL;
-            menu.set(39, Menu.icon(real ? Material.ZOMBIE_HEAD : Material.COMPARATOR,
-                            real ? "<color:" + Ui.WARN + ">Real mobs</color>"
-                                    : "<color:" + Ui.ACCENT + ">Simulated</color>",
-                            stat("Currently", mode.display()),
-                            hint(real
-                                    ? "Mobs are spawned into the world for you to kill"
-                                    : "Their drops are banked in storage instead"),
-                            hint("Click to switch")),
+            SpawnMode mode = SpawnerManager.effectiveMode(spawner, plugin.settings());
+            boolean real = mode == SpawnMode.REAL;
+            menu.set(40, button(real ? Material.ZOMBIE_HEAD : Material.REDSTONE, Ui.ACCENT,
+                            real ? "Real mobs" : "Simulated",
+                            kv("Mode", mode.display()),
+                            note(real ? "Mobs spawn for you to kill"
+                                    : "Their drops are banked instead"),
+                            tip("Click to switch")),
                     p -> {
-                        dialogs().toggleSpawnMode(p, spawner);
+                        actions().toggleSpawnMode(p, spawner);
                         openMain(p, spawner);
                     });
         }
-        if (plugin.settings().uiAllowPlayerChoice) {
-            menu.set(43, Menu.icon(Material.ITEM_FRAME, "<color:" + Ui.FAINT + ">Menu style</color>",
-                            stat("Currently", plugin.uiModes().modeFor(player).display()),
-                            hint("Click to switch to the dialog menus")),
-                    p -> dialogs().switchMode(p, spawner));
-        }
-        menu.set(40, close(), Player::closeInventory);
+        menu.set(42, button(Material.PAPER, Ui.FAINT, "Details",
+                kv("Owner", spawner.ownerName() == null ? "unknown" : spawner.ownerName()),
+                kv("Placed", Numbers.duration(System.currentTimeMillis() - spawner.createdAt()) + " ago"),
+                kv("Where", spawner.position().toString()),
+                kv("Cycle", Numbers.duration(spawner.spawnDelayTicks() * 50L))));
+
+        menu.set(49, close(), Player::closeInventory);
         menu.open(player);
+    }
+
+    /** The centred tile every screen leads with: what this spawner is and how full it is. */
+    private ItemStack hero(SpawnerData spawner) {
+        long used = spawner.storage().usedSlots();
+        double fill = spawner.fillRatio();
+        return Menu.decorate(actions().iconStack(spawner),
+                "<color:" + Ui.ACCENT + "><bold>" + spawner.displayType().toUpperCase(Locale.ROOT)
+                        + "</bold></color> <color:" + Ui.FAINT + ">×"
+                        + Numbers.plain(spawner.stackSize()) + "</color>",
+                rule(),
+                kv("Storage", Numbers.compact(used) + " / " + Numbers.compact(spawner.maxSlots())
+                        + " slots"),
+                bar(fill),
+                kv("Items", Numbers.plain(spawner.storage().totalItems())),
+                kv("Experience", Numbers.plain(spawner.storedExp())),
+                kv("Per cycle", spawner.minMobs() + "-" + spawner.maxMobs() + " every "
+                        + Numbers.duration(spawner.spawnDelayTicks() * 50L)),
+                kv("Mode", SpawnerManager.effectiveMode(spawner, plugin.settings()).display()),
+                kv("Status", actionsStatus(spawner)));
+    }
+
+    private String actionsStatus(SpawnerData spawner) {
+        if (spawner.stopped()) {
+            return "turned off";
+        }
+        if (spawner.atCapacity()) {
+            return "full";
+        }
+        return spawner.active() ? "running" : "idle - nobody nearby";
     }
 
     // ------------------------------------------------------------------ storage
@@ -153,8 +196,8 @@ public final class ChestUi {
         int current = Numbers.clamp(page, 0, pages - 1);
         long used = spawner.storage().usedSlots();
 
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Storage</color> <color:" + Ui.FAINT + ">· page "
-                + (current + 1) + "/" + pages + "</color>", 6, false);
+        Menu menu = Menu.grid(title("Storage") + " <color:" + Ui.FAINT + ">"
+                + (current + 1) + "/" + pages + "</color>", 6);
 
         int start = current * ITEMS_PER_PAGE;
         int end = Math.min(entries.size(), start + ITEMS_PER_PAGE);
@@ -165,45 +208,52 @@ public final class ChestUi {
             long stacks = (amount + sig.maxStack() - 1L) / sig.maxStack();
             double share = used <= 0L ? 0.0D : (double) stacks / (double) used;
             double unit = plugin.prices().priceOf(sig.template(), plugin.settings());
+            boolean filtered = spawner.filtered().contains(sig.material());
 
-            // The icon is the real item, so it keeps its enchantments, name and model.
-            ItemStack display = sig.copy(Math.min(sig.maxStack(), (int) Math.min(amount, 64)));
+            // The icon is the real item, so it keeps its enchantments, name and model, and the
+            // stack count doubles as a readable badge.
+            ItemStack display = Menu.badge(sig.copy(1), stacks);
             menu.set(i - start, Menu.decorate(display,
                             "<color:" + Ui.INK + ">" + SpawnerItems.pretty(sig.material().name())
-                                    + "</color> <color:" + Ui.FAINT + ">×</color> <color:" + Ui.ACCENT + ">"
-                                    + Numbers.plain(amount) + "</color>",
-                            stat("Stacks", Numbers.plain(stacks) + " · " + Numbers.percent(share) + " of storage"),
-                            stat("Value", unit > 0.0D
-                                    ? plugin.economy().format(unit * amount) : "unsellable"),
-                            spawner.filtered().contains(sig.material())
-                                    ? "<color:" + Ui.BAD + ">Filtered - new drops discarded</color>" : null,
-                            hint("Click for withdraw, sell and filter")),
+                                    + "</color>  <color:" + Ui.ACCENT + "><bold>×"
+                                    + Numbers.plain(amount) + "</bold></color>",
+                            rule(),
+                            kv("Stacks", Numbers.plain(stacks)),
+                            kv("Share", Numbers.percent(share)),
+                            bar(share),
+                            kv("Worth", unit > 0.0D
+                                    ? plugin.economy().format(unit * amount) : "no sell price"),
+                            filtered ? "<color:" + Ui.BAD + ">✖ Filtered - new drops discarded</color>"
+                                    : null,
+                            tip("Withdraw, sell or filter")),
                     p -> openItemActions(p, spawner, sig));
         }
 
-        // The bottom row comes from gui_layouts/storage_gui.yml: slot_1..slot_9 map onto the last
-        // row, which is what that file's own comments call inventory slots 46-54.
-        // Fill the control row first so unconfigured slots read as panel rather than as holes.
-        ItemStack filler = Menu.icon(Material.BLACK_STAINED_GLASS_PANE, "<color:" + Ui.FAINT + "> </color>");
-        for (int slot = 45; slot < 54; slot++) {
-            menu.set(slot, filler);
-        }
+        // The control row is laid out by gui_layouts/storage_gui.yml: slot_1..slot_9 map onto the
+        // last row, which is what that file's own comments call inventory slots 46-54.
         GuiLayout layout = plugin.guiLayouts().storage();
         GuiLayout.Condition condition = sellAvailable()
                 ? GuiLayout.Condition.SELL_INTEGRATION : GuiLayout.Condition.NO_SELL_INTEGRATION;
         for (Map.Entry<Integer, GuiButton> entry : layout.slots(condition).entrySet()) {
             int configured = entry.getKey();
-            GuiButton button = entry.getValue();
-            if (!button.enabled() || configured < 1 || configured > 9) {
+            GuiButton definition = entry.getValue();
+            if (!definition.enabled() || configured < 1 || configured > 9) {
                 continue;
             }
             int slot = 45 + (configured - 1);
-            if (button.infoButton()) {
-                menu.set(slot, infoTile(spawner, used, pages));
+            if (definition.infoButton()) {
+                menu.set(slot, hero(spawner));
                 continue;
             }
-            menu.set(slot, layoutIcon(button, spawner, button.actionFor(false), current, pages),
-                    p -> runStorageAction(p, spawner, button.actionFor(false), current));
+            String action = definition.actionFor(false);
+            menu.set(slot, layoutIcon(definition, spawner, action, current, pages),
+                    p -> runStorageAction(p, spawner, action, current));
+        }
+        menu.fillEmpty(45, 53, Material.BLACK_STAINED_GLASS_PANE);
+
+        if (entries.isEmpty()) {
+            menu.set(22, Menu.icon(Material.BARRIER, "<color:" + Ui.FAINT + ">Nothing stored yet</color>",
+                    note("Drops appear here as they are produced")));
         }
         menu.open(player);
     }
@@ -214,54 +264,58 @@ public final class ChestUi {
         String name = SpawnerItems.pretty(sig.material().name());
         boolean filtered = spawner.filtered().contains(sig.material());
 
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">" + name + "</color>", 4, true);
-        menu.set(4, Menu.decorate(sig.copy(Math.min(sig.maxStack(), 64)),
-                "<color:" + Ui.ACCENT + "><bold>" + name + "</bold></color>",
-                stat("Stored", Numbers.plain(amount)),
-                stat("Unit price", unit > 0.0D ? plugin.economy().format(unit) : "not sellable"),
-                unit > 0.0D ? stat("Total value", plugin.economy().format(unit * amount)) : null));
+        Menu menu = Menu.panel(title(name), 5);
+        menu.set(4, Menu.decorate(Menu.badge(sig.copy(1), amount),
+                "<color:" + Ui.ACCENT + "><bold>" + name.toUpperCase(Locale.ROOT) + "</bold></color>",
+                rule(),
+                kv("Stored", Numbers.plain(amount)),
+                kv("Unit price", unit > 0.0D ? plugin.economy().format(unit) : "no sell price"),
+                unit > 0.0D ? kv("Total value", plugin.economy().format(unit * amount)) : null,
+                kv("Filtered", filtered ? "yes" : "no")));
 
-        menu.set(19, Menu.icon(Material.CHEST_MINECART, "<color:" + Ui.ACCENT + ">Take one stack</color>",
-                        stat("Amount", Numbers.plain(Math.min(amount, sig.maxStack())))),
-                p -> dialogs().withdraw(p, spawner, sig, sig.maxStack()));
-        menu.set(20, Menu.icon(Material.CHEST, "<color:" + Ui.ACCENT + ">Fill my inventory</color>"),
-                p -> dialogs().withdraw(p, spawner, sig, (long) sig.maxStack() * 36));
-        menu.set(21, Menu.icon(Material.DROPPER, "<color:" + Ui.WARN + ">Drop all on ground</color>",
-                        hint("Throws every " + name + " where you are looking")),
-                p -> dialogs().dropItemOnGround(p, spawner, sig, () -> openStorage(p, spawner, 0)));
+        menu.set(10, button(Material.CHEST_MINECART, Ui.ACCENT, "Take one stack",
+                        kv("Amount", Numbers.plain(Math.min(amount, sig.maxStack()))),
+                        tip("Straight into your inventory")),
+                p -> actions().withdraw(p, spawner, sig, sig.maxStack()));
+        menu.set(12, button(Material.CHEST, Ui.ACCENT, "Fill my inventory",
+                        kv("Up to", Numbers.plain(Math.min(amount, (long) sig.maxStack() * 36))),
+                        tip("As much as will fit")),
+                p -> actions().withdraw(p, spawner, sig, (long) sig.maxStack() * 36));
+        menu.set(14, button(Material.DROPPER, Ui.WARN, "Drop all on the ground",
+                        kv("Amount", Numbers.plain(amount)),
+                        note("Thrown where you are looking"),
+                        tip("Metered, so the server stays smooth")),
+                p -> actions().dropItemOnGround(p, spawner, sig, () -> openStorage(p, spawner, 0)));
         if (unit > 0.0D && plugin.settings().economyEnabled) {
-            menu.set(22, Menu.icon(Material.GOLD_INGOT, "<color:" + Ui.GOOD + ">Sell all " + name + "</color>",
-                            stat("You receive", plugin.economy().format(unit * amount))),
-                    p -> dialogs().sellOne(p, spawner, sig));
+            menu.set(16, button(Material.GOLD_INGOT, Ui.GOOD, "Sell all " + name,
+                            kv("You receive", plugin.economy().format(unit * amount)),
+                            tip("Sells only this item")),
+                    p -> actions().sellOne(p, spawner, sig));
         }
-        menu.set(23, Menu.icon(filtered ? Material.LIME_DYE : Material.GRAY_DYE,
-                        filtered ? "<color:" + Ui.GOOD + ">Stop filtering</color>"
-                                : "<color:" + Ui.BAD + ">Filter out</color>",
-                        hint("Filtered drops are never stored")),
+
+        ItemStack filter = button(filtered ? Material.LIME_DYE : Material.REDSTONE_TORCH,
+                filtered ? Ui.GOOD : Ui.BAD, filtered ? "Stop filtering" : "Filter this out",
+                kv("Currently", filtered ? "discarded on sight" : "kept"),
+                note("Filtered drops are never stored"),
+                tip("Click to toggle"));
+        menu.set(21, filtered ? Menu.glow(filter) : filter, p -> {
+            actions().toggleFilter(spawner, sig.material());
+            openItemActions(p, spawner, sig);
+        });
+        menu.set(23, button(Material.COMPARATOR, Ui.INK, "Sort to top",
+                        note("Show this item first in storage"),
+                        tip("Click to pin it")),
                 p -> {
-                    dialogs().toggleFilter(spawner, sig.material());
-                    openItemActions(p, spawner, sig);
-                });
-        menu.set(24, Menu.icon(Material.COMPARATOR, "<color:" + Ui.INK + ">Sort to top</color>",
-                        hint("Show this item first in storage")),
-                p -> {
-                    dialogs().sortToTop(spawner, sig.material());
+                    actions().sortToTop(spawner, sig.material());
                     openStorage(p, spawner, 0);
                 });
 
-        menu.set(31, back(), p -> openStorage(p, spawner, 0));
+        footer(menu, p -> openStorage(p, spawner, 0));
         menu.open(player);
     }
 
     // ------------------------------------------------------------------ bulk drop
 
-    /**
-     * The chest replacement for the slider version.
-     * <p>
-     * A chest cannot ask for an arbitrary page range, so it offers the ranges players actually use -
-     * one page, five, twenty, everything - starting from the first page. Anything larger than the
-     * spawner holds is clamped by the drop service, so the buttons never need hiding.
-     */
     public void openBulkDrop(Player player, SpawnerData spawner) {
         if (!player.hasPermission("havocspawners.bulkdrop")) {
             plugin.messages().send(player, "no-permission");
@@ -270,26 +324,33 @@ public final class ChestUi {
         int pages = spawner.storage().pageCount();
         boolean toInventory = plugin.settings().preferPlayerInventory;
 
-        Menu menu = new Menu("<color:" + Ui.WARN + ">Bulk withdraw</color>", 4, true);
-        menu.set(4, Menu.icon(Material.MINECART, "<color:" + Ui.WARN + "><bold>Bulk withdraw</bold></color>",
-                stat("Pages held", Numbers.plain(pages)),
-                stat("Items held", Numbers.plain(spawner.storage().totalItems())),
-                stat("Delivery", plugin.settings().stacksPerTick + " stacks/tick"),
+        Menu menu = Menu.panel(title("Bulk withdraw"), 5);
+        menu.set(4, Menu.icon(Material.MINECART,
+                "<color:" + Ui.WARN + "><bold>BULK WITHDRAW</bold></color>",
+                rule(),
+                kv("Pages held", Numbers.plain(pages)),
+                kv("Items held", Numbers.plain(spawner.storage().totalItems())),
+                kv("Delivery", plugin.settings().stacksPerTick + " stacks per tick"),
+                kv("Going to", toInventory ? "your inventory" : "the ground"),
                 plugin.dropService().isRunning(spawner)
-                        ? "<color:" + Ui.BAD + ">A withdrawal is already running</color>" : null));
+                        ? "<color:" + Ui.BAD + ">A withdrawal is already running</color>" : null,
+                note("Metered, so a four-million-item spawner costs the same as a small one")));
 
         int[] counts = {1, 5, 20};
-        int[] slots = {19, 20, 21};
+        int[] slots = {10, 12, 14};
         for (int i = 0; i < counts.length; i++) {
             int count = counts[i];
-            menu.set(slots[i], Menu.icon(Material.DROPPER,
-                            "<color:" + Ui.WARN + ">Withdraw " + count + (count == 1 ? " page" : " pages")
-                                    + "</color>",
-                            hint("Starts from the first page")),
-                    p -> dialogs().runBulk(p, spawner, 0, count - 1, toInventory));
+            menu.set(slots[i], button(Material.DROPPER, Ui.WARN,
+                            "Withdraw " + count + (count == 1 ? " page" : " pages"),
+                            kv("About", Numbers.plain(count * 45L) + " stacks"),
+                            note("Starts from the first page"),
+                            tip("Click to start")),
+                    p -> actions().runBulk(p, spawner, 0, count - 1, toInventory));
         }
-        menu.set(22, Menu.icon(Material.TNT, "<color:" + Ui.BAD + ">Withdraw everything</color>",
-                        stat("Items", Numbers.plain(spawner.storage().totalItems()))),
+        menu.set(16, button(Material.TNT, Ui.BAD, "Withdraw everything",
+                        kv("Items", Numbers.plain(spawner.storage().totalItems())),
+                        kv("Pages", Numbers.plain(pages)),
+                        tip("Empties the whole spawner")),
                 p -> {
                     p.closeInventory();
                     if (plugin.dropService().isRunning(spawner)) {
@@ -303,12 +364,8 @@ public final class ChestUi {
                     plugin.messages().send(p, "bulk-drop.started",
                             Messages.of("pages", Numbers.plain(pages)));
                 });
-        menu.set(24, Menu.icon(toInventory ? Material.CHEST : Material.DROPPER,
-                        "<color:" + Ui.INK + ">Delivery: "
-                                + (toInventory ? "my inventory" : "the ground") + "</color>",
-                        hint("Set by prefer-player-inventory in config.yml")));
 
-        menu.set(31, back(), p -> openStorage(p, spawner, 0));
+        footer(menu, p -> openStorage(p, spawner, 0));
         menu.open(player);
     }
 
@@ -327,55 +384,57 @@ public final class ChestUi {
         // The layout file can turn the confirmation off entirely, which is what the old plugin's
         // skip_sell_confirmation did.
         if (layout.skipSellConfirmation()) {
-            dialogs().sellAll(player, spawner);
+            actions().sellAll(player, spawner);
             openMain(player, spawner);
             return;
         }
         SellResult preview = plugin.sell().preview(spawner);
 
-        Menu menu = new Menu("<color:" + Ui.GOOD + ">Confirm sale</color>", 3, true);
         List<String> lore = new ArrayList<>();
-        lore.add(stat("Items", Numbers.plain(preview.itemsSold())));
-        lore.add(stat("Gross", plugin.economy().format(preview.gross())));
+        lore.add(rule());
+        lore.add(kv("Items", Numbers.plain(preview.itemsSold())));
+        lore.add(kv("Gross", plugin.economy().format(preview.gross())));
         if (plugin.settings().taxPercent > 0.0D) {
-            lore.add(stat("Tax", plugin.economy().format(preview.tax())));
+            lore.add(kv("Tax", plugin.economy().format(preview.tax())
+                    + " (" + Numbers.percent(plugin.settings().taxPercent / 100.0D) + ")"));
         }
-        lore.add(stat("You receive", plugin.economy().format(preview.net())));
+        lore.add(kv("You receive", plugin.economy().format(preview.net())));
         if (preview.unsellableItems() > 0L) {
-            lore.add(hint(Numbers.plain(preview.unsellableItems()) + " items have no price and stay"));
+            lore.add(note(Numbers.plain(preview.unsellableItems()) + " items have no price and stay"));
         }
 
+        Menu menu = Menu.panel(title("Confirm sale"), 3);
         // gui_layouts/sell_confirm_gui.yml: slot_1..slot_27 over three rows.
-        for (Map.Entry<Integer, GuiButton> entry : layout.slots(sellAvailable()
-                ? GuiLayout.Condition.SELL_INTEGRATION
-                : GuiLayout.Condition.NO_SELL_INTEGRATION).entrySet()) {
+        for (Map.Entry<Integer, GuiButton> entry : layout.slots(GuiLayout.Condition.SELL_INTEGRATION)
+                .entrySet()) {
             int configured = entry.getKey();
-            GuiButton button = entry.getValue();
-            if (!button.enabled() || configured < 1 || configured > 27) {
+            GuiButton definition = entry.getValue();
+            if (!definition.enabled() || configured < 1 || configured > 27) {
                 continue;
             }
             int slot = configured - 1;
-            if (button.infoButton()) {
-                menu.set(slot, Menu.decorate(dialogs().iconStack(spawner),
-                        "<color:" + Ui.GOOD + "><bold>Sell storage</bold></color>",
+            if (definition.infoButton()) {
+                menu.set(slot, Menu.decorate(actions().iconStack(spawner),
+                        "<color:" + Ui.GOOD + "><bold>SELL STORAGE</bold></color>",
                         lore.toArray(new String[0])));
                 continue;
             }
-            String action = button.actionFor(false);
-            Material material = button.usesSpawnerIcon()
-                    ? plugin.lootEngine().iconFor(spawner) : button.material();
+            String action = definition.actionFor(false);
+            Material material = definition.usesSpawnerIcon()
+                    ? plugin.lootEngine().iconFor(spawner) : definition.material();
             if ("confirm".equalsIgnoreCase(action)) {
-                menu.set(slot, Menu.icon(material, "<color:" + Ui.GOOD + ">Sell for "
-                                + plugin.economy().format(preview.net()) + "</color>"),
+                menu.set(slot, Menu.glow(button(material, Ui.GOOD, "Confirm",
+                                kv("You receive", plugin.economy().format(preview.net())),
+                                tip("Sell it all"))),
                         p -> {
-                            dialogs().sellAll(p, spawner);
+                            actions().sellAll(p, spawner);
                             openMain(p, spawner);
                         });
             } else if ("cancel".equalsIgnoreCase(action)) {
-                menu.set(slot, Menu.icon(material, "<color:" + Ui.FAINT + ">Cancel</color>"),
+                menu.set(slot, button(material, Ui.BAD, "Cancel", tip("Keep everything")),
                         p -> openMain(p, spawner));
             } else {
-                menu.set(slot, Menu.icon(material, "<color:" + Ui.FAINT + "> </color>"));
+                menu.set(slot, Menu.pane(material));
             }
         }
         menu.open(player);
@@ -388,36 +447,39 @@ public final class ChestUi {
             plugin.messages().send(player, "no-permission");
             return;
         }
-        int inHand = dialogs().countMatchingInInventory(player, spawner);
+        int inHand = actions().countMatchingInInventory(player, spawner);
 
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Stack manager</color>", 4, true);
-        menu.set(4, Menu.decorate(dialogs().iconStack(spawner),
-                "<color:" + Ui.ACCENT + "><bold>" + spawner.displayType() + "</bold></color>",
-                stat("Stacked", Numbers.plain(spawner.stackSize()) + " / "
+        Menu menu = Menu.panel(title("Stack manager"), 5);
+        menu.set(4, Menu.decorate(Menu.badge(actions().iconStack(spawner), spawner.stackSize()),
+                "<color:" + Ui.ACCENT + "><bold>STACK MANAGER</bold></color>",
+                rule(),
+                kv("Stacked", Numbers.plain(spawner.stackSize()) + " / "
                         + Numbers.plain(spawner.maxStackSize())),
-                stat("In your inventory", Numbers.plain(inHand) + " matching spawners"),
-                hint("Stacking multiplies simulation and storage")));
+                bar(ratio(spawner.stackSize(), spawner.maxStackSize())),
+                kv("In your inventory", Numbers.plain(inHand) + " matching"),
+                note("Stacking multiplies simulation and storage capacity")));
 
         int[] amounts = {1, 8, 64};
-        int[] addSlots = {19, 20, 21};
-        int[] removeSlots = {23, 24, 25};
+        int[] addSlots = {10, 11, 12};
+        int[] removeSlots = {14, 15, 16};
         for (int i = 0; i < amounts.length; i++) {
             int amount = amounts[i];
-            menu.set(addSlots[i], Menu.icon(Material.LIME_DYE,
-                            "<color:" + Ui.GOOD + ">Add " + amount + "</color>",
-                            hint("Takes matching spawners from your inventory")),
-                    p -> dialogs().changeStack(p, spawner, amount));
-            menu.set(removeSlots[i], Menu.icon(Material.RED_DYE,
-                            "<color:" + Ui.WARN + ">Remove " + amount + "</color>",
-                            hint("Gives them back as items")),
-                    p -> dialogs().changeStack(p, spawner, -amount));
+            menu.set(addSlots[i], button(Material.LIME_DYE, Ui.GOOD, "Add " + amount,
+                            note("Takes matching spawners from your inventory"),
+                            tip("Click to add")),
+                    p -> actions().changeStack(p, spawner, amount));
+            menu.set(removeSlots[i], button(Material.RED_DYE, Ui.WARN, "Remove " + amount,
+                            note("Gives them back as items"),
+                            tip("Click to remove")),
+                    p -> actions().changeStack(p, spawner, -amount));
         }
-        menu.set(22, Menu.icon(Material.SPAWNER, "<color:" + Ui.ACCENT + ">Add everything</color>",
-                        stat("Available", Numbers.plain(inHand))),
-                p -> dialogs().changeStack(p, spawner,
-                        Math.max(1, dialogs().countMatchingInInventory(p, spawner))));
+        menu.set(22, button(Material.SPAWNER, Ui.ACCENT, "Add everything",
+                        kv("Available", Numbers.plain(inHand)),
+                        tip("Adds every matching spawner you hold")),
+                p -> actions().changeStack(p, spawner,
+                        Math.max(1, actions().countMatchingInInventory(p, spawner))));
 
-        menu.set(31, back(), p -> openMain(p, spawner));
+        footer(menu, p -> openMain(p, spawner));
         menu.open(player);
     }
 
@@ -431,34 +493,42 @@ public final class ChestUi {
         UpgradeTier current = plugin.upgrades().tier(spawner.level());
         UpgradeTier next = plugin.upgrades().next(spawner.level());
 
-        Menu menu = new Menu("<color:" + Ui.WARN + ">Upgrades</color>", 3, true);
-        menu.set(2, Menu.decorate(dialogs().iconStack(spawner),
-                "<color:" + Ui.ACCENT + "><bold>" + current.name() + "</bold></color>",
-                stat("Level", String.valueOf(spawner.level())),
-                stat("Cycle time", Numbers.duration(spawner.spawnDelayTicks() * 50L)),
-                stat("Loot multiplier", "×" + current.lootMultiplier()),
-                stat("Storage", Numbers.plain(spawner.maxPages()) + " pages"),
-                stat("XP capacity", Numbers.plain(spawner.maxStoredExp()))));
+        Menu menu = Menu.panel(title("Upgrades"), 5);
+        menu.set(4, Menu.decorate(actions().iconStack(spawner),
+                "<color:" + Ui.ACCENT + "><bold>" + current.name().toUpperCase(Locale.ROOT)
+                        + "</bold></color> <color:" + Ui.FAINT + ">level " + spawner.level() + "</color>",
+                rule(),
+                kv("Cycle time", Numbers.duration(spawner.spawnDelayTicks() * 50L)),
+                kv("Loot multiplier", "×" + current.lootMultiplier()),
+                kv("Storage", Numbers.plain(spawner.maxPages()) + " pages"),
+                kv("XP capacity", Numbers.plain(spawner.maxStoredExp()))));
 
         if (next == null) {
-            menu.set(6, Menu.icon(Material.NETHER_STAR,
-                    "<color:" + Ui.GOOD + ">Fully upgraded</color>"));
+            menu.set(22, Menu.glow(Menu.icon(Material.NETHER_STAR,
+                    "<color:" + Ui.GOOD + "><bold>Fully upgraded</bold></color>",
+                    note("There is nothing left to buy"))));
         } else {
-            menu.set(6, Menu.icon(Material.ANVIL, "<color:" + Ui.WARN + ">Next: " + next.name() + "</color>",
-                            stat("Speed", "×" + next.delayMultiplier() + " cycle time"),
-                            stat("Loot", "×" + next.lootMultiplier()),
-                            stat("Extra pages", "+" + next.bonusPages()),
-                            stat("Extra XP cap", "+" + Numbers.plain(next.bonusExpCapacity())),
-                            stat("Cost", plugin.economy().format(next.cost())),
-                            stat("Your balance", plugin.economy().format(
-                                    plugin.economy().balance(player.getUniqueId()))),
-                            hint("Click to upgrade")),
-                    p -> {
-                        dialogs().buyUpgrade(p, spawner, next);
-                        openUpgrade(p, spawner);
-                    });
+            double balance = plugin.economy().balance(player.getUniqueId());
+            boolean affordable = balance >= next.cost();
+            ItemStack buy = button(affordable ? Material.ANVIL : Material.BARRIER,
+                    affordable ? Ui.GOOD : Ui.BAD, "Upgrade to " + next.name(),
+                    rule(),
+                    kv("Speed", "×" + next.delayMultiplier() + " cycle time"),
+                    kv("Loot", "×" + next.lootMultiplier()),
+                    kv("Extra pages", "+" + next.bonusPages()),
+                    kv("Extra XP cap", "+" + Numbers.plain(next.bonusExpCapacity())),
+                    rule(),
+                    kv("Cost", plugin.economy().format(next.cost())),
+                    kv("Your balance", plugin.economy().format(balance)),
+                    affordable ? tip("Click to upgrade")
+                            : note("You cannot afford this yet"));
+            menu.set(22, affordable ? Menu.glow(buy) : buy, p -> {
+                actions().buyUpgrade(p, spawner, next);
+                openUpgrade(p, spawner);
+            });
         }
-        menu.set(22, back(), p -> openMain(p, spawner));
+
+        footer(menu, p -> openMain(p, spawner));
         menu.open(player);
     }
 
@@ -471,38 +541,44 @@ public final class ChestUi {
         }
         boolean hopper = AutomationService.hasHopper(spawner);
 
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Automation</color>", 3, true);
-        menu.set(4, Menu.icon(Material.REDSTONE, "<color:" + Ui.ACCENT + "><bold>Automation</bold></color>",
-                hint("Runs every " + plugin.settings().automationIntervalSeconds
-                        + "s, even while you are offline"),
-                stat("Earned so far", plugin.economy().format(spawner.earnedMoney()))));
+        Menu menu = Menu.panel(title("Automation"), 5);
+        menu.set(4, Menu.icon(Material.REDSTONE,
+                "<color:" + Ui.ACCENT + "><bold>AUTOMATION</bold></color>",
+                rule(),
+                kv("Runs every", plugin.settings().automationIntervalSeconds + "s"),
+                kv("Earned so far", plugin.economy().format(spawner.earnedMoney())),
+                note("Keeps working while you are offline")));
 
-        menu.set(11, Menu.icon(spawner.autoSell() ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE,
-                        (spawner.autoSell() ? "<color:" + Ui.BAD + ">Disable" : "<color:" + Ui.GOOD + ">Enable")
-                                + " auto-sell</color>",
-                        stat("Currently", onOff(spawner.autoSell())),
-                        hint("Sells priced drops straight into your balance")),
-                p -> {
-                    spawner.autoSell(!spawner.autoSell());
-                    plugin.storage().queueSave(spawner);
-                    openAutomation(p, spawner);
-                });
-        menu.set(15, Menu.icon(hopper ? Material.HOPPER : Material.BARRIER,
-                        (spawner.autoCollect() ? "<color:" + Ui.BAD + ">Disable" : "<color:" + Ui.GOOD + ">Enable")
-                                + " auto-collect</color>",
-                        stat("Currently", onOff(spawner.autoCollect())),
-                        stat("Hopper below", hopper ? "found" : "missing"),
-                        hint("Feeds a hopper directly under the spawner - nothing else")),
-                p -> {
-                    if (!spawner.autoCollect() && !AutomationService.hasHopper(spawner)) {
-                        plugin.messages().send(p, "automation.needs-hopper");
-                        return;
-                    }
-                    spawner.autoCollect(!spawner.autoCollect());
-                    plugin.storage().queueSave(spawner);
-                    openAutomation(p, spawner);
-                });
-        menu.set(22, back(), p -> openMain(p, spawner));
+        ItemStack sell = button(spawner.autoSell() ? Material.GOLD_BLOCK : Material.GOLD_NUGGET,
+                spawner.autoSell() ? Ui.GOOD : Ui.FAINT,
+                (spawner.autoSell() ? "Disable" : "Enable") + " auto-sell",
+                kv("Currently", onOff(spawner.autoSell())),
+                note("Sells priced drops into your balance"),
+                tip("Click to toggle"));
+        menu.set(11, spawner.autoSell() ? Menu.glow(sell) : sell, p -> {
+            spawner.autoSell(!spawner.autoSell());
+            plugin.storage().queueSave(spawner);
+            openAutomation(p, spawner);
+        });
+
+        ItemStack collect = button(hopper ? Material.HOPPER : Material.BARRIER,
+                spawner.autoCollect() ? Ui.GOOD : Ui.FAINT,
+                (spawner.autoCollect() ? "Disable" : "Enable") + " auto-collect",
+                kv("Currently", onOff(spawner.autoCollect())),
+                kv("Hopper below", hopper ? "found" : "missing"),
+                note("Feeds a hopper directly under the spawner - nothing else"),
+                tip(hopper ? "Click to toggle" : "Place a hopper under the spawner first"));
+        menu.set(15, spawner.autoCollect() ? Menu.glow(collect) : collect, p -> {
+            if (!spawner.autoCollect() && !AutomationService.hasHopper(spawner)) {
+                plugin.messages().send(p, "automation.needs-hopper");
+                return;
+            }
+            spawner.autoCollect(!spawner.autoCollect());
+            plugin.storage().queueSave(spawner);
+            openAutomation(p, spawner);
+        });
+
+        footer(menu, p -> openMain(p, spawner));
         menu.open(player);
     }
 
@@ -515,30 +591,33 @@ public final class ChestUi {
         }
         List<String> names = plugin.networks().namesFor(player.getUniqueId());
 
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Networks</color>", 4, true);
-        menu.set(4, Menu.icon(Material.CHAIN, "<color:" + Ui.ACCENT + "><bold>Spawner networks</bold></color>",
-                hint("Group spawners so one button sells or drains all of them"),
-                stat("This spawner", spawner.network() == null ? "unassigned" : spawner.network()),
-                stat("Your networks", names.isEmpty() ? "none" : String.join(", ", names))));
+        Menu menu = Menu.panel(title("Networks"), 5);
+        menu.set(4, Menu.icon(Material.CHAIN, "<color:" + Ui.ACCENT + "><bold>NETWORKS</bold></color>",
+                rule(),
+                kv("This spawner", spawner.network() == null ? "unassigned" : spawner.network()),
+                kv("Your networks", names.isEmpty() ? "none" : String.join(", ", names)),
+                note("Group spawners so one button sells or drains all of them")));
 
-        int slot = 18;
+        int slot = 10;
         for (String name : names) {
-            if (slot > 26) {
+            if (slot > 16) {
                 break;
             }
             boolean assigned = name.equalsIgnoreCase(spawner.network());
-            menu.set(slot++, Menu.icon(assigned ? Material.LIME_BANNER : Material.WHITE_BANNER,
-                            "<color:" + Ui.ACCENT + ">" + name + "</color>",
-                            stat("Spawners", Numbers.plain(
-                                    plugin.networks().members(player.getUniqueId(), name).size())),
-                            assigned ? "<color:" + Ui.GOOD + ">This spawner is in it</color>" : null,
-                            hint("Left click: open  ·  Right click: assign this spawner")),
+            ItemStack icon = button(assigned ? Material.LIME_BANNER : Material.WHITE_BANNER,
+                    Ui.ACCENT, name,
+                    kv("Spawners", Numbers.plain(
+                            plugin.networks().members(player.getUniqueId(), name).size())),
+                    assigned ? kv("This spawner", "is a member") : null,
+                    tip("Open this network"));
+            menu.set(slot++, assigned ? Menu.glow(icon) : icon,
                     p -> openNetworkOverview(p, name, spawner));
         }
 
         // A chest has no text field, so naming a network happens in chat instead.
-        menu.set(29, Menu.icon(Material.NAME_TAG, "<color:" + Ui.GOOD + ">Create a network</color>",
-                        hint("Closes this menu and asks you to type a name")),
+        menu.set(20, button(Material.NAME_TAG, Ui.GOOD, "Create a network",
+                        note("Closes this menu and asks you to type a name"),
+                        tip("Click to start")),
                 p -> plugin.chatPrompt().ask(p,
                         "<color:" + Ui.ACCENT + ">Type a name for the new network.</color>",
                         (typer, name) -> {
@@ -552,8 +631,9 @@ public final class ChestUi {
                             openNetwork(typer, spawner);
                         }));
         if (!names.isEmpty()) {
-            menu.set(31, Menu.icon(Material.LEAD, "<color:" + Ui.ACCENT + ">Assign this spawner</color>",
-                            hint("Closes this menu and asks which network")),
+            menu.set(22, button(Material.LEAD, Ui.ACCENT, "Assign this spawner",
+                            note("Closes this menu and asks which network"),
+                            tip("Click to choose")),
                     p -> plugin.chatPrompt().ask(p,
                             "<color:" + Ui.ACCENT + ">Type the network name: <color:" + Ui.INK + ">"
                                     + String.join(", ", names) + "</color></color>",
@@ -568,13 +648,15 @@ public final class ChestUi {
                             }));
         }
         if (spawner.network() != null) {
-            menu.set(33, Menu.icon(Material.SHEARS, "<color:" + Ui.WARN + ">Remove from network</color>"),
+            menu.set(24, button(Material.SHEARS, Ui.WARN, "Remove from network",
+                            tip("Leaves the network alone")),
                     p -> {
                         plugin.networks().assign(spawner, p.getUniqueId(), null);
                         openNetwork(p, spawner);
                     });
         }
-        menu.set(35, back(), p -> openMain(p, spawner));
+
+        footer(menu, p -> openMain(p, spawner));
         menu.open(player);
     }
 
@@ -594,43 +676,50 @@ public final class ChestUi {
             value += plugin.sell().preview(member).net();
         }
 
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Network</color> <color:" + Ui.FAINT + ">· "
-                + network + "</color>", 3, true);
-        menu.set(4, Menu.icon(Material.CHAIN, "<color:" + Ui.ACCENT + "><bold>" + network + "</bold></color>",
-                stat("Spawners", Numbers.plain(members.size())),
-                stat("Items held", Numbers.plain(items)),
-                stat("Storage", Numbers.compact(slots) + " / " + Numbers.compact(capacity) + " slots"),
-                stat("Stored XP", Numbers.plain(exp)),
-                stat("Sell value", plugin.economy().format(value))));
+        Menu menu = Menu.panel(title(network), 5);
+        menu.set(4, Menu.badge(Menu.icon(Material.CHAIN,
+                "<color:" + Ui.ACCENT + "><bold>" + network.toUpperCase(Locale.ROOT) + "</bold></color>",
+                rule(),
+                kv("Spawners", Numbers.plain(members.size())),
+                kv("Items held", Numbers.plain(items)),
+                kv("Storage", Numbers.compact(slots) + " / " + Numbers.compact(capacity) + " slots"),
+                bar(capacity <= 0 ? 0.0D : (double) slots / capacity),
+                kv("Stored XP", Numbers.plain(exp)),
+                kv("Sell value", plugin.economy().format(value))), members.size()));
 
-        menu.set(10, Menu.icon(Material.GOLD_INGOT, "<color:" + Ui.GOOD + ">Sell whole network</color>",
-                        stat("Value", plugin.economy().format(value))),
+        menu.set(10, button(Material.GOLD_INGOT, Ui.GOOD, "Sell whole network",
+                        kv("Value", plugin.economy().format(value)),
+                        tip("Sells every spawner in it")),
                 p -> {
-                    dialogs().sellNetwork(p, members);
+                    actions().sellNetwork(p, members);
                     openNetworkOverview(p, network, origin);
                 });
-        menu.set(12, Menu.icon(Material.EXPERIENCE_BOTTLE, "<color:" + Ui.GOOD + ">Claim all XP</color>",
-                        stat("Stored", Numbers.plain(exp))),
+        menu.set(12, button(Material.EXPERIENCE_BOTTLE, Ui.GOOD, "Claim all XP",
+                        kv("Stored", Numbers.plain(exp)),
+                        tip("Takes it from every spawner")),
                 p -> {
-                    dialogs().claimNetworkExp(p, members);
+                    actions().claimNetworkExp(p, members);
                     openNetworkOverview(p, network, origin);
                 });
-        menu.set(14, Menu.icon(Material.DROPPER, "<color:" + Ui.WARN + ">Drain everything to me</color>",
-                        hint("Metered, so the server stays smooth")),
+        menu.set(14, button(Material.DROPPER, Ui.WARN, "Drain everything to me",
+                        kv("Items", Numbers.plain(items)),
+                        note("Metered, so the server stays smooth"),
+                        tip("Click to start")),
                 p -> {
                     p.closeInventory();
-                    dialogs().drainNetwork(p, members);
+                    actions().drainNetwork(p, members);
                 });
-        menu.set(16, Menu.icon(Material.COMPARATOR, "<color:" + Ui.INK + ">Toggle auto-sell for all</color>"),
+        menu.set(16, button(Material.COMPARATOR, Ui.INK, "Toggle auto-sell for all",
+                        tip("Flips every spawner at once")),
                 p -> {
-                    dialogs().toggleNetworkAutoSell(p, members);
+                    actions().toggleNetworkAutoSell(p, members);
                     openNetworkOverview(p, network, origin);
                 });
 
         if (origin == null) {
-            menu.set(22, close(), Player::closeInventory);
+            menu.set(31, close(), Player::closeInventory);
         } else {
-            menu.set(22, back(), p -> openNetwork(p, origin));
+            footer(menu, p -> openNetwork(p, origin));
         }
         menu.open(player);
     }
@@ -640,206 +729,302 @@ public final class ChestUi {
     public void openAnalytics(Player player, SpawnerData spawner) {
         int hours = plugin.settings().analyticsHistoryHours;
 
-        Menu menu = new Menu("<color:" + Ui.INK + ">Analytics</color>", 3, true);
-        menu.set(4, Menu.decorate(dialogs().iconStack(spawner),
-                "<color:" + Ui.ACCENT + "><bold>Analytics</bold></color> <color:" + Ui.FAINT + ">last "
-                        + hours + "h</color>",
-                stat("Items produced", Numbers.plain(plugin.analytics().itemsInWindow(spawner))
-                        + " (" + Numbers.compact((long) plugin.analytics().itemsPerHour(spawner)) + "/h)"),
-                stat("Earnings", plugin.economy().format(plugin.analytics().moneyInWindow(spawner))
-                        + " (" + plugin.economy().format(plugin.analytics().moneyPerHour(spawner)) + "/h)"),
-                stat("Lifetime items", Numbers.plain(spawner.producedItems())),
-                stat("Lifetime XP", Numbers.plain(spawner.producedExp())),
-                stat("Lifetime earnings", plugin.economy().format(spawner.earnedMoney())),
-                stat("Placed", Numbers.duration(System.currentTimeMillis() - spawner.createdAt()) + " ago"),
-                stat("Owner", spawner.ownerName() == null ? "unknown" : spawner.ownerName()),
-                stat("Location", spawner.position().toString())));
+        Menu menu = Menu.panel(title("Analytics"), 5);
+        menu.set(4, Menu.decorate(actions().iconStack(spawner),
+                "<color:" + Ui.ACCENT + "><bold>ANALYTICS</bold></color> <color:" + Ui.FAINT
+                        + ">last " + hours + "h</color>",
+                rule(),
+                kv("Items produced", Numbers.plain(plugin.analytics().itemsInWindow(spawner))),
+                kv("Per hour", Numbers.compact((long) plugin.analytics().itemsPerHour(spawner))),
+                kv("Earnings", plugin.economy().format(plugin.analytics().moneyInWindow(spawner))),
+                kv("Per hour", plugin.economy().format(plugin.analytics().moneyPerHour(spawner)))));
 
-        menu.set(13, Menu.icon(Material.GOLDEN_APPLE, "<color:" + Ui.INK + ">Your top spawners</color>"),
-                p -> plugin.adminUi().openLeaderboard(p, p.getUniqueId()));
-        menu.set(22, back(), p -> openMain(p, spawner));
+        menu.set(11, Menu.icon(Material.BOOK, "<color:" + Ui.INK + ">Lifetime</color>",
+                rule(),
+                kv("Items", Numbers.plain(spawner.producedItems())),
+                kv("Experience", Numbers.plain(spawner.producedExp())),
+                kv("Earnings", plugin.economy().format(spawner.earnedMoney())),
+                kv("Placed", Numbers.duration(System.currentTimeMillis() - spawner.createdAt()) + " ago"),
+                kv("Owner", spawner.ownerName() == null ? "unknown" : spawner.ownerName()),
+                kv("Where", spawner.position().toString())));
+        menu.set(15, button(Material.GOLDEN_APPLE, Ui.INK, "Your top spawners",
+                        tip("Open the leaderboard")),
+                p -> openLeaderboard(p, p.getUniqueId()));
+
+        footer(menu, p -> openMain(p, spawner));
         menu.open(player);
     }
 
     // ------------------------------------------------------------------ filters
 
     public void openFilters(Player player, SpawnerData spawner, int page) {
-        List<Material> candidates = dialogs().filterCandidates(spawner);
+        List<Material> candidates = actions().filterCandidates(spawner);
         int perPage = 45;
         int pages = Math.max(1, (candidates.size() + perPage - 1) / perPage);
         int current = Numbers.clamp(page, 0, pages - 1);
 
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Drop filters</color> <color:" + Ui.FAINT + ">· page "
-                + (current + 1) + "/" + pages + "</color>", 6, false);
+        Menu menu = Menu.grid(title("Drop filters") + " <color:" + Ui.FAINT + ">"
+                + (current + 1) + "/" + pages + "</color>", 6);
 
         int start = current * perPage;
         int end = Math.min(candidates.size(), start + perPage);
         for (int i = start; i < end; i++) {
             Material material = candidates.get(i);
             boolean filtered = spawner.filtered().contains(material);
-            menu.set(i - start, Menu.icon(material,
-                            (filtered ? "<color:" + Ui.BAD + ">✖ " : "<color:" + Ui.GOOD + ">✔ ")
-                                    + SpawnerItems.pretty(material.name()) + "</color>",
-                            stat("Status", filtered ? "discarded on sight" : "kept"),
-                            hint("Click to toggle")),
-                    p -> {
-                        dialogs().toggleFilter(spawner, material);
-                        openFilters(p, spawner, current);
-                    });
+            ItemStack icon = Menu.icon(material,
+                    (filtered ? "<color:" + Ui.BAD + ">✖ " : "<color:" + Ui.GOOD + ">✔ ")
+                            + SpawnerItems.pretty(material.name()) + "</color>",
+                    kv("Status", filtered ? "discarded on sight" : "kept"),
+                    tip("Click to toggle"));
+            menu.set(i - start, filtered ? icon : Menu.glow(icon), p -> {
+                actions().toggleFilter(spawner, material);
+                openFilters(p, spawner, current);
+            });
         }
 
-        menu.set(45, Menu.icon(Material.HOPPER, "<color:" + Ui.ACCENT + ">Drop filters</color>",
-                hint("Filtered drops are discarded the moment they are generated"),
-                stat("Filtered", spawner.filtered().isEmpty()
-                        ? "nothing" : Numbers.plain(spawner.filtered().size()) + " materials")));
+        menu.set(45, Menu.icon(Material.COMPARATOR,
+                "<color:" + Ui.ACCENT + "><bold>DROP FILTERS</bold></color>",
+                rule(),
+                kv("Filtered", spawner.filtered().isEmpty()
+                        ? "nothing" : Numbers.plain(spawner.filtered().size()) + " materials"),
+                note("Filtered drops are discarded the moment they are generated"),
+                note("Glowing means it is kept")));
         if (current > 0) {
-            menu.set(46, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Previous page</color>"),
+            menu.set(48, button(Material.ARROW, Ui.ACCENT, "Previous page",
+                            kv("Page", (current + 1) + " / " + pages)),
                     p -> openFilters(p, spawner, current - 1));
         }
         if (current < pages - 1) {
-            menu.set(47, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Next page</color>"),
+            menu.set(50, button(Material.ARROW, Ui.ACCENT, "Next page",
+                            kv("Page", (current + 1) + " / " + pages)),
                     p -> openFilters(p, spawner, current + 1));
         }
         if (!spawner.filtered().isEmpty()) {
-            menu.set(49, Menu.icon(Material.WATER_BUCKET, "<color:" + Ui.GOOD + ">Clear all filters</color>"),
+            menu.set(52, button(Material.WATER_BUCKET, Ui.GOOD, "Clear all filters",
+                            tip("Keep everything again")),
                     p -> {
-                        dialogs().clearFilters(spawner);
+                        actions().clearFilters(spawner);
                         openFilters(p, spawner, 0);
                     });
         }
-        menu.set(53, back(), p -> openStorage(p, spawner, 0));
+        menu.set(49, back(), p -> openStorage(p, spawner, 0));
+        menu.fillEmpty(45, 53, Material.BLACK_STAINED_GLASS_PANE);
         menu.open(player);
     }
 
-    // ------------------------------------------------------------------ configured layouts
+    // ------------------------------------------------------------------ server-wide screens
+
+    public void openList(Player player, int page, UUID ownerFilter) {
+        List<SpawnerData> spawners = new ArrayList<>(
+                ownerFilter == null ? plugin.spawners().all() : plugin.spawners().ownedBy(ownerFilter));
+        spawners.sort(Comparator.comparingLong((SpawnerData s) -> -s.storage().totalItems()));
+
+        int perPage = 45;
+        int pages = Math.max(1, (spawners.size() + perPage - 1) / perPage);
+        int current = Numbers.clamp(page, 0, pages - 1);
+
+        Menu menu = Menu.grid(title("Spawner browser") + " <color:" + Ui.FAINT + ">"
+                + (current + 1) + "/" + pages + "</color>", 6);
+
+        int start = current * perPage;
+        int end = Math.min(spawners.size(), start + perPage);
+        for (int i = start; i < end; i++) {
+            SpawnerData spawner = spawners.get(i);
+            Material icon = plugin.lootEngine().iconFor(spawner);
+            menu.set(i - start, Menu.decorate(
+                            Menu.badge(new ItemStack(icon == null || icon.isAir()
+                                    ? Material.SPAWNER : icon), spawner.stackSize()),
+                            "<color:" + Ui.INK + ">" + spawner.displayType() + "</color> <color:"
+                                    + Ui.FAINT + ">×" + spawner.stackSize() + "</color>",
+                            rule(),
+                            kv("Items", Numbers.compact(spawner.storage().totalItems())),
+                            kv("Owner", spawner.ownerName() == null ? "?" : spawner.ownerName()),
+                            kv("Where", spawner.position().toString()),
+                            tip("Click to teleport")),
+                    p -> plugin.adminUi().teleport(p, spawner));
+        }
+
+        menu.set(45, Menu.icon(Material.COMPASS,
+                "<color:" + Ui.ACCENT + "><bold>SPAWNER BROWSER</bold></color>",
+                rule(),
+                kv("Tracked", Numbers.plain(spawners.size()))));
+        if (current > 0) {
+            menu.set(48, button(Material.ARROW, Ui.ACCENT, "Previous page",
+                            kv("Page", (current + 1) + " / " + pages)),
+                    p -> openList(p, current - 1, ownerFilter));
+        }
+        if (current < pages - 1) {
+            menu.set(50, button(Material.ARROW, Ui.ACCENT, "Next page",
+                            kv("Page", (current + 1) + " / " + pages)),
+                    p -> openList(p, current + 1, ownerFilter));
+        }
+        menu.set(52, button(Material.GOLDEN_APPLE, Ui.INK, "Leaderboard",
+                        tip("Top earning spawners")),
+                p -> openLeaderboard(p, null));
+        menu.set(49, close(), Player::closeInventory);
+        menu.fillEmpty(45, 53, Material.BLACK_STAINED_GLASS_PANE);
+        menu.open(player);
+    }
+
+    public void openLeaderboard(Player player, UUID ownerFilter) {
+        List<SpawnerData> top = plugin.analytics()
+                .topEarners(ownerFilter, plugin.settings().leaderboardSize);
+
+        Menu menu = Menu.panel(title("Leaderboard"), 5);
+        menu.set(4, Menu.icon(Material.GOLDEN_APPLE,
+                "<color:" + Ui.ACCENT + "><bold>TOP EARNING SPAWNERS</bold></color>",
+                rule(),
+                kv("Window", "last " + plugin.settings().analyticsHistoryHours + "h"),
+                kv("Showing", ownerFilter == null ? "the whole server" : "only yours")));
+
+        int[] podium = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25};
+        int rank = 1;
+        for (SpawnerData spawner : top) {
+            if (rank > podium.length) {
+                break;
+            }
+            Material icon = plugin.lootEngine().iconFor(spawner);
+            ItemStack tile = Menu.decorate(Menu.badge(new ItemStack(icon == null || icon.isAir()
+                            ? Material.SPAWNER : icon), rank),
+                    "<color:" + Ui.ACCENT + "><bold>#" + rank + "</bold></color> <color:" + Ui.INK + ">"
+                            + spawner.displayType() + "</color>",
+                    rule(),
+                    kv("Earned", plugin.economy().format(plugin.analytics().moneyInWindow(spawner))),
+                    kv("Items", Numbers.compact(plugin.analytics().itemsInWindow(spawner))),
+                    kv("Owner", spawner.ownerName() == null ? "?" : spawner.ownerName()));
+            menu.set(podium[rank - 1], rank <= 3 ? Menu.glow(tile) : tile);
+            rank++;
+        }
+        if (top.isEmpty()) {
+            menu.set(22, Menu.icon(Material.BARRIER,
+                    "<color:" + Ui.FAINT + ">No production recorded yet</color>"));
+        }
+
+        menu.set(29, button(Material.PLAYER_HEAD, Ui.INK, "Only mine", tip("Filter to your spawners")),
+                p -> openLeaderboard(p, p.getUniqueId()));
+        menu.set(33, button(Material.BEACON, Ui.INK, "Whole server", tip("Show everyone")),
+                p -> openLeaderboard(p, null));
+        menu.set(40, close(), Player::closeInventory);
+        menu.open(player);
+    }
+
+    public void openPrices(Player player, int page) {
+        List<Map.Entry<Material, Double>> prices =
+                new ArrayList<>(plugin.prices().customPrices().entrySet());
+        prices.sort(Comparator.comparingDouble((Map.Entry<Material, Double> e) -> -e.getValue()));
+
+        int perPage = 45;
+        int pages = Math.max(1, (prices.size() + perPage - 1) / perPage);
+        int current = Numbers.clamp(page, 0, pages - 1);
+
+        Menu menu = Menu.grid(title("Sell prices") + " <color:" + Ui.FAINT + ">"
+                + (current + 1) + "/" + pages + "</color>", 6);
+
+        int start = current * perPage;
+        int end = Math.min(prices.size(), start + perPage);
+        for (int i = start; i < end; i++) {
+            Map.Entry<Material, Double> entry = prices.get(i);
+            menu.set(i - start, Menu.icon(entry.getKey(),
+                    "<color:" + Ui.INK + ">" + SpawnerItems.pretty(entry.getKey().name()) + "</color>",
+                    rule(),
+                    kv("Each", plugin.economy().format(entry.getValue())),
+                    kv("Per stack", plugin.economy().format(entry.getValue() * 64))));
+        }
+
+        menu.set(45, Menu.icon(Material.GOLD_INGOT,
+                "<color:" + Ui.ACCENT + "><bold>SELL PRICES</bold></color>",
+                rule(),
+                kv("Priced items", Numbers.plain(prices.size())),
+                "none".equals(plugin.prices().shopName())
+                        ? null : kv("Shop", plugin.prices().shopName())));
+        if (current > 0) {
+            menu.set(48, button(Material.ARROW, Ui.ACCENT, "Previous page",
+                            kv("Page", (current + 1) + " / " + pages)),
+                    p -> openPrices(p, current - 1));
+        }
+        if (current < pages - 1) {
+            menu.set(50, button(Material.ARROW, Ui.ACCENT, "Next page",
+                            kv("Page", (current + 1) + " / " + pages)),
+                    p -> openPrices(p, current + 1));
+        }
+        menu.set(49, close(), Player::closeInventory);
+        menu.fillEmpty(45, 53, Material.BLACK_STAINED_GLASS_PANE);
+        menu.open(player);
+    }
+
+    // ------------------------------------------------------------------ configured layout
 
     /** True when selling is actually possible, which is what the layout's conditions key off. */
     private boolean sellAvailable() {
         return plugin.settings().economyEnabled && plugin.economy().available();
     }
 
-    /** The display-only tile: the spawner's own icon, its stats and what it drops. */
-    private ItemStack infoTile(SpawnerData spawner, long used, int pages) {
-        List<String> lore = new ArrayList<>();
-        lore.add(stat("Type", spawner.displayType() + " ×" + Numbers.plain(spawner.stackSize())));
-        lore.add(stat("Used", Numbers.compact(used) + " / " + Numbers.compact(spawner.maxSlots()) + " slots"));
-        lore.add(stat("Items", Numbers.plain(spawner.storage().totalItems())));
-        lore.add(stat("Pages", Numbers.plain(pages)));
-        lore.add(stat("Stored XP", Numbers.plain(spawner.storedExp())));
-        lore.add(stat("Mode", dev.havoc.spawners.spawner.SpawnerManager
-                .effectiveMode(spawner, plugin.settings()).display()));
-        lore.add("<color:" + Ui.FAINT + ">Drops</color>");
-        int shown = 0;
-        for (var entry : plugin.loot().tableFor(spawner).entries()) {
-            if (shown++ >= 6) {
-                lore.add(hint("  ..."));
-                break;
-            }
-            lore.add("<color:" + Ui.FAINT + ">  · </color><color:" + Ui.INK + ">"
-                    + SpawnerItems.pretty(entry.material().name()) + "</color> <color:" + Ui.FAINT + ">"
-                    + entry.min() + "-" + entry.max() + " @ " + Math.round(entry.chance()) + "%</color>");
-        }
-        if (shown == 0) {
-            lore.add(hint("  nothing"));
-        }
-        return Menu.decorate(dialogs().iconStack(spawner),
-                "<color:" + Ui.ACCENT + "><bold>" + spawner.displayType() + "</bold></color>",
-                lore.toArray(new String[0]));
-    }
-
     /** Names a configured button from its action, so a re-slotted layout still reads correctly. */
-    private ItemStack layoutIcon(GuiButton button, SpawnerData spawner, String action,
+    private ItemStack layoutIcon(GuiButton definition, SpawnerData spawner, String action,
                                  int page, int pages) {
-        Material material = button.usesSpawnerIcon()
-                ? plugin.lootEngine().iconFor(spawner) : button.material();
-        String name;
-        String[] lore;
-        switch (action == null ? "none" : action.toLowerCase(java.util.Locale.ROOT)) {
-            case "previous_page" -> {
-                name = "<color:" + Ui.ACCENT + ">Previous page</color>";
-                lore = new String[]{stat("Page", (page + 1) + " / " + pages)};
-            }
-            case "next_page" -> {
-                name = "<color:" + Ui.ACCENT + ">Next page</color>";
-                lore = new String[]{stat("Page", (page + 1) + " / " + pages)};
-            }
-            case "sort_items" -> {
-                name = "<color:" + Ui.INK + ">Sort storage</color>";
-                lore = new String[]{hint("Biggest stacks first")};
-            }
-            case "open_filter" -> {
-                name = "<color:" + Ui.INK + ">Filters</color>";
-                lore = new String[]{stat("Filtered", spawner.filtered().isEmpty()
-                        ? "nothing" : Numbers.plain(spawner.filtered().size()) + " materials")};
-            }
-            case "sell_all" -> {
-                name = "<color:" + Ui.GOOD + ">Sell everything</color>";
-                lore = new String[]{stat("Value", plugin.economy().format(
-                        plugin.sell().preview(spawner).net()))};
-            }
-            case "sell_and_exp" -> {
-                name = "<color:" + Ui.GOOD + ">Sell everything + XP</color>";
-                lore = new String[]{
-                        stat("Value", plugin.economy().format(plugin.sell().preview(spawner).net())),
-                        stat("XP", Numbers.plain(spawner.storedExp()))};
-            }
-            case "collect_exp" -> {
-                name = "<color:" + Ui.GOOD + ">Claim XP</color>";
-                lore = new String[]{stat("Stored", Numbers.plain(spawner.storedExp()))};
-            }
-            case "take_all" -> {
-                name = "<color:" + Ui.ACCENT + ">Take this page</color>";
-                lore = new String[]{hint("Fills your inventory from this page")};
-            }
-            case "drop_page" -> {
-                name = "<color:" + Ui.WARN + ">Drop this page</color>";
-                lore = new String[]{hint("Throws 45 stacks where you are looking"),
-                        hint("The screen stays open, so you can keep going")};
-            }
-            case "bulk_withdraw" -> {
-                name = "<color:" + Ui.WARN + ">Bulk withdraw</color>";
-                lore = new String[]{hint("Empty many pages at once")};
-            }
-            case "return_main" -> {
-                name = "<color:" + Ui.FAINT + ">← Back</color>";
-                lore = new String[0];
-            }
-            case "close" -> {
-                name = "<color:" + Ui.FAINT + ">Close</color>";
-                lore = new String[0];
-            }
-            default -> {
-                name = "<color:" + Ui.FAINT + "> </color>";
-                lore = new String[0];
-            }
-        }
-        return Menu.icon(material, name, lore);
+        Material material = definition.usesSpawnerIcon()
+                ? plugin.lootEngine().iconFor(spawner) : definition.material();
+        return switch (action == null ? "none" : action.toLowerCase(Locale.ROOT)) {
+            case "previous_page" -> button(material, Ui.ACCENT, "Previous page",
+                    kv("Page", (page + 1) + " / " + pages));
+            case "next_page" -> button(material, Ui.ACCENT, "Next page",
+                    kv("Page", (page + 1) + " / " + pages));
+            case "sort_items" -> button(material, Ui.INK, "Sort storage",
+                    note("Biggest stacks first"), tip("Click to sort"));
+            case "open_filter" -> button(material, Ui.INK, "Drop filters",
+                    kv("Filtered", spawner.filtered().isEmpty()
+                            ? "nothing" : Numbers.plain(spawner.filtered().size()) + " materials"),
+                    tip("Choose what to throw away"));
+            case "sell_all" -> button(material, Ui.GOOD, "Sell everything",
+                    kv("Worth", plugin.economy().format(plugin.sell().preview(spawner).net())),
+                    tip("Sell the whole storage"));
+            case "sell_and_exp" -> button(material, Ui.GOOD, "Sell everything + XP",
+                    kv("Worth", plugin.economy().format(plugin.sell().preview(spawner).net())),
+                    kv("Experience", Numbers.plain(spawner.storedExp())),
+                    tip("Claim the XP, then sell"));
+            case "collect_exp" -> button(material, Ui.GOOD, "Claim experience",
+                    kv("Stored", Numbers.plain(spawner.storedExp())),
+                    bar(ratio(spawner.storedExp(), spawner.maxStoredExp())),
+                    tip("Take it all"));
+            case "take_all" -> button(material, Ui.ACCENT, "Take this page",
+                    note("Fills your inventory from this page"), tip("Click to take"));
+            case "drop_page" -> button(material, Ui.WARN, "Drop this page",
+                    note("Thrown where you are looking"),
+                    note("The screen stays open, so you can keep going"),
+                    tip("Click to throw"));
+            case "bulk_withdraw" -> button(material, Ui.WARN, "Bulk withdraw",
+                    kv("Pages held", Numbers.plain(spawner.storage().pageCount())),
+                    tip("Empty many pages at once"));
+            case "return_main" -> button(material, Ui.FAINT, "Back", tip("To the spawner menu"));
+            case "close" -> button(material, Ui.FAINT, "Close");
+            default -> Menu.pane(material);
+        };
     }
 
     /** Runs a storage-screen action named by the layout file. */
     private void runStorageAction(Player player, SpawnerData spawner, String action, int page) {
-        switch (action == null ? "none" : action.toLowerCase(java.util.Locale.ROOT)) {
+        switch (action == null ? "none" : action.toLowerCase(Locale.ROOT)) {
             case "previous_page" -> openStorage(player, spawner, page - 1);
             case "next_page" -> openStorage(player, spawner, page + 1);
             case "sort_items" -> {
-                dialogs().sortStorage(spawner);
+                actions().sortStorage(spawner);
                 openStorage(player, spawner, page);
             }
             case "open_filter" -> openFilters(player, spawner, 0);
             case "sell_all" -> openSell(player, spawner);
             case "sell_and_exp" -> {
-                dialogs().claimExpQuietly(player, spawner);
+                actions().claimExpQuietly(player, spawner);
                 openSell(player, spawner);
             }
             case "collect_exp" -> {
-                dialogs().claimExp(player, spawner);
+                actions().claimExp(player, spawner);
                 openStorage(player, spawner, page);
             }
             case "take_all" -> {
-                dialogs().takePage(player, spawner, page);
+                actions().takePage(player, spawner, page);
                 openStorage(player, spawner, page);
             }
-            case "drop_page" -> dialogs().dropOnePage(player, spawner, page);
+            case "drop_page" -> actions().dropOnePage(player, spawner, page);
             case "bulk_withdraw" -> openBulkDrop(player, spawner);
             case "return_main" -> openMain(player, spawner);
             case "close" -> player.closeInventory();
@@ -849,142 +1034,62 @@ public final class ChestUi {
         }
     }
 
-    // ------------------------------------------------------------------ server-wide screens
+    // ------------------------------------------------------------------ design system
 
-    public void openList(Player player, int page, java.util.UUID ownerFilter) {
-        List<SpawnerData> spawners = new ArrayList<>(
-                ownerFilter == null ? plugin.spawners().all() : plugin.spawners().ownedBy(ownerFilter));
-        spawners.sort(java.util.Comparator.comparingLong((SpawnerData s) -> -s.storage().totalItems()));
-
-        int perPage = 45;
-        int pages = Math.max(1, (spawners.size() + perPage - 1) / perPage);
-        int current = Numbers.clamp(page, 0, pages - 1);
-
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Spawner browser</color> <color:" + Ui.FAINT
-                + ">· page " + (current + 1) + "/" + pages + "</color>", 6, false);
-
-        int start = current * perPage;
-        int end = Math.min(spawners.size(), start + perPage);
-        for (int i = start; i < end; i++) {
-            SpawnerData spawner = spawners.get(i);
-            Material icon = plugin.lootEngine().iconFor(spawner);
-            menu.set(i - start, Menu.icon(icon == null || icon.isAir() ? Material.SPAWNER : icon,
-                            "<color:" + Ui.INK + ">" + spawner.displayType() + "</color> <color:"
-                                    + Ui.FAINT + ">×" + spawner.stackSize() + "</color>",
-                            stat("Items", Numbers.compact(spawner.storage().totalItems())),
-                            stat("Owner", spawner.ownerName() == null ? "?" : spawner.ownerName()),
-                            stat("Where", spawner.position().toString()),
-                            hint("Click to teleport")),
-                    p -> plugin.adminUi().teleport(p, spawner));
-        }
-
-        menu.set(45, Menu.icon(Material.COMPASS, "<color:" + Ui.ACCENT + ">Spawner browser</color>",
-                stat("Tracked", Numbers.plain(spawners.size()))));
-        if (current > 0) {
-            menu.set(46, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Previous page</color>"),
-                    p -> openList(p, current - 1, ownerFilter));
-        }
-        if (current < pages - 1) {
-            menu.set(47, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Next page</color>"),
-                    p -> openList(p, current + 1, ownerFilter));
-        }
-        menu.set(49, Menu.icon(Material.GOLDEN_APPLE, "<color:" + Ui.INK + ">Leaderboard</color>"),
-                p -> openLeaderboard(p, null));
-        menu.set(53, close(), Player::closeInventory);
-        menu.open(player);
+    /** Every screen's title reads "Havoc | <what>", so the plugin is identifiable at a glance. */
+    private static String title(String screen) {
+        return "<color:" + Ui.ACCENT + "><bold>Havoc</bold></color> <color:" + Ui.FAINT
+                + ">| </color><color:" + Ui.INK + ">" + screen + "</color>";
     }
 
-    public void openLeaderboard(Player player, java.util.UUID ownerFilter) {
-        List<SpawnerData> top = plugin.analytics()
-                .topEarners(ownerFilter, plugin.settings().leaderboardSize);
-
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Top earning spawners</color>", 4, true);
-        int slot = 9;
-        int rank = 1;
-        for (SpawnerData spawner : top) {
-            if (slot > 26) {
-                break;
-            }
-            Material icon = plugin.lootEngine().iconFor(spawner);
-            menu.set(slot++, Menu.icon(icon == null || icon.isAir() ? Material.SPAWNER : icon,
-                    "<color:" + Ui.ACCENT + ">#" + rank + "</color> <color:" + Ui.INK + ">"
-                            + spawner.displayType() + "</color> <color:" + Ui.FAINT + ">×"
-                            + spawner.stackSize() + "</color>",
-                    stat("Earned", plugin.economy().format(plugin.analytics().moneyInWindow(spawner))),
-                    stat("Items", Numbers.compact(plugin.analytics().itemsInWindow(spawner))),
-                    stat("Owner", spawner.ownerName() == null ? "?" : spawner.ownerName())));
-            rank++;
-        }
-        if (top.isEmpty()) {
-            menu.set(13, Menu.icon(Material.BARRIER, "<color:" + Ui.FAINT + ">No production recorded yet</color>"));
-        }
-        menu.set(4, Menu.icon(Material.GOLDEN_APPLE, "<color:" + Ui.ACCENT + "><bold>Leaderboard</bold></color>",
-                hint("Last " + plugin.settings().analyticsHistoryHours + " hours")));
-        menu.set(30, Menu.icon(Material.PLAYER_HEAD, "<color:" + Ui.INK + ">Only mine</color>"),
-                p -> openLeaderboard(p, p.getUniqueId()));
-        menu.set(32, Menu.icon(Material.BEACON, "<color:" + Ui.INK + ">Whole server</color>"),
-                p -> openLeaderboard(p, null));
-        menu.set(35, close(), Player::closeInventory);
-        menu.open(player);
+    /** A button: a coloured title plus the standard lore grid. */
+    private static ItemStack button(Material material, String colour, String name, String... lore) {
+        return Menu.icon(material, "<color:" + colour + "><bold>" + name + "</bold></color>", lore);
     }
 
-    public void openPrices(Player player, int page) {
-        List<Map.Entry<Material, Double>> prices =
-                new ArrayList<>(plugin.prices().customPrices().entrySet());
-        prices.sort(java.util.Comparator.comparingDouble((Map.Entry<Material, Double> e) -> -e.getValue()));
-
-        int perPage = 45;
-        int pages = Math.max(1, (prices.size() + perPage - 1) / perPage);
-        int current = Numbers.clamp(page, 0, pages - 1);
-
-        Menu menu = new Menu("<color:" + Ui.ACCENT + ">Sell prices</color> <color:" + Ui.FAINT
-                + ">· page " + (current + 1) + "/" + pages + "</color>", 6, false);
-
-        int start = current * perPage;
-        int end = Math.min(prices.size(), start + perPage);
-        for (int i = start; i < end; i++) {
-            Map.Entry<Material, Double> entry = prices.get(i);
-            menu.set(i - start, Menu.icon(entry.getKey(),
-                    "<color:" + Ui.INK + ">" + SpawnerItems.pretty(entry.getKey().name()) + "</color>",
-                    stat("Each", plugin.economy().format(entry.getValue())),
-                    stat("Per stack", plugin.economy().format(entry.getValue() * 64))));
-        }
-
-        menu.set(45, Menu.icon(Material.GOLD_INGOT, "<color:" + Ui.ACCENT + ">Sell prices</color>",
-                stat("Priced items", Numbers.plain(prices.size())),
-                "none".equals(plugin.prices().shopName())
-                        ? null : stat("Shop", plugin.prices().shopName())));
-        if (current > 0) {
-            menu.set(46, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Previous page</color>"),
-                    p -> openPrices(p, current - 1));
-        }
-        if (current < pages - 1) {
-            menu.set(47, Menu.icon(Material.ARROW, "<color:" + Ui.ACCENT + ">Next page</color>"),
-                    p -> openPrices(p, current + 1));
-        }
-        menu.set(53, close(), Player::closeInventory);
-        menu.open(player);
+    /** One row of the label/value grid used in every tooltip. */
+    private static String kv(String label, String value) {
+        return "<color:" + Ui.FAINT + ">" + label + "</color>  <color:" + Ui.INK + ">"
+                + value + "</color>";
     }
 
-    // ------------------------------------------------------------------ helpers
-
-    private static String stat(String label, String value) {
-        return "<color:" + Ui.FAINT + ">" + label + "</color> <color:" + Ui.INK + ">" + value + "</color>";
+    /** The click affordance, always the last line. */
+    private static String tip(String text) {
+        return "<color:" + Ui.ACCENT + ">➤ </color><color:" + Ui.INK + ">" + text + "</color>";
     }
 
-    private static String hint(String text) {
+    private static String note(String text) {
         return "<color:" + Ui.FAINT + "><italic>" + text + "</italic></color>";
+    }
+
+    private static String rule() {
+        return "<color:" + Ui.FAINT + ">━━━━━━━━━━━━━━━━</color>";
+    }
+
+    private static String bar(double ratio) {
+        return Ui.bar(ratio, 16, ratio >= 0.95D ? Ui.BAD : ratio >= 0.75D ? Ui.WARN : Ui.GOOD);
+    }
+
+    private static double ratio(long value, long max) {
+        return max <= 0L ? 0.0D : Math.min(1.0D, (double) value / (double) max);
     }
 
     private static String onOff(boolean value) {
         return value ? "on" : "off";
     }
 
+    /** Back in the bottom-centre slot, Close beside it - identical on every screen. */
+    private static void footer(Menu menu, java.util.function.Consumer<Player> back) {
+        int row = (menu.rows() - 1) * 9;
+        menu.set(row + 4, back(), back);
+        menu.set(row + 6, close(), Player::closeInventory);
+    }
+
     private static ItemStack back() {
-        return Menu.icon(Material.ARROW, "<color:" + Ui.FAINT + ">← Back</color>");
+        return Menu.icon(Material.ARROW, "<color:" + Ui.FAINT + "><bold>← Back</bold></color>");
     }
 
     private static ItemStack close() {
-        return Menu.icon(Material.BARRIER, "<color:" + Ui.FAINT + ">Close</color>");
+        return Menu.icon(Material.BARRIER, "<color:" + Ui.BAD + "><bold>Close</bold></color>");
     }
 }

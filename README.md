@@ -1,7 +1,6 @@
 # HavocSpawners
 
-Spawners for **Paper 1.21.x** (1.21.6+), in a fully configurable **chest GUI** — or Paper dialogs, if
-you prefer them.
+Spawners for **Paper 1.21.x**, in a fully configurable **chest GUI**.
 
 A spawner can either **simulate** its mobs, banking what they would have dropped so a ×26,000 stack
 costs the server nothing, or **spawn them for real** like a vanilla spawner. That is a per-spawner
@@ -14,8 +13,7 @@ switch in its own menu. Bedrock players get native forms either way.
 It is a ground-up replacement for a SmartSpawner-style setup, with three things done differently:
 
 1. **Your GUI, your layout.** The chest screens are driven by `gui_layouts/*.yml` in the same format
-   the old plugin used, so an existing layout drops straight in. Prefer Paper's dialogs? One setting
-   swaps every screen over, and both run the same code.
+   the old plugin used, so an existing layout drops straight in.
 2. **Bulk withdrawal that does not lag.** Emptying forty pages, or a whole spawner holding four
    million items, costs the same per tick as emptying one.
 3. **A real importer.** Your existing SmartSpawner database — YAML, SQLite or MySQL — comes across
@@ -61,7 +59,7 @@ it has already produced, so it is the "stop filling up while I deal with this" b
 destructive one. Turning it back on restarts the clock rather than paying out a backlog of catch-up
 cycles for the time it spent paused.
 
-It is in all three presentations — dialog, chest GUI and Bedrock forms.
+It is on the main menu, on Java and Bedrock alike.
 
 ---
 
@@ -96,22 +94,25 @@ floor instead of spawning anything.
 
 ---
 
-## Two menu styles
+## The menus
 
-The same plugin, two presentations. Pick one in `config.yml`:
+Every Java screen is a chest GUI; Bedrock players get native forms, because Geyser cannot render Java
+menus of any kind. There is no second presentation to keep in sync and nothing for a player to choose.
 
-```yaml
-ui:
-  mode: MODERN            # MODERN (chest GUI) or DIALOG
-  allow-player-choice: true
-```
+All fifteen screens share one visual language, so the plugin reads as a single thing rather than as a
+pile of chest inventories:
 
-| | |
-|---|---|
-| **MODERN** *(default)* | A classic chest GUI. Item icons in real slots, controls on the bottom row, the shape players already know. |
-| **DIALOG** | Paper's server-side dialogs. Real buttons and tooltips, sliders for page ranges, a text field for network names, and no inventory to desync. |
+- an accent frame around the edge, a dark interior;
+- a centred **hero tile** carrying the spawner's numbers — storage, items, XP, cycle, mode, status —
+  with a bar wherever something is a proportion;
+- one label/value grid in every tooltip, and the click affordance always on the last line;
+- **Back** and **Close** in the same place on the bottom row of every screen;
+- an enchant shimmer on anything that is currently *on* — a running spawner, an enabled toggle, an
+  affordable upgrade, a kept filter — so state is visible without reading;
+- stack counts used as number badges: page rank on the leaderboard, stack totals in storage,
+  spawner count on a network.
 
-### The chest layouts are yours
+### The layouts are yours
 
 The storage and sell-confirmation screens are laid out by two files, in the same `slot_N` format the
 old plugin used — drop an existing layout in and it keeps working:
@@ -125,8 +126,8 @@ Storage `slot_1`–`slot_9` are the bottom row. Supported actions: `previous_pag
 `sort_items`, `open_filter`, `sell_all`, `sell_and_exp`, `collect_exp`, `take_all`, `drop_page`,
 `bulk_withdraw`, `return_main`, `close`, `none`. The `if: sell_integration / no_sell_integration`
 conditions work, so one slot can be *Sell + XP* when an economy is hooked and *Take all* when it is
-not. `info_button: true` gives the display tile, and `PLAYER_HEAD` means "use this spawner's own
-icon" — the mob-head slot. Any slot you leave out is filled with a plain panel.
+not. `info_button: true` gives the hero tile, and `PLAYER_HEAD` means "use this spawner's own icon".
+Any slot you leave out is filled with a plain panel.
 
 Sell confirmation uses `slot_1`–`slot_27` with `confirm`, `cancel` and `none`, and
 `skip_sell_confirmation: true` sells immediately with no confirm screen at all.
@@ -134,37 +135,8 @@ Sell confirmation uses `slot_1`–`slot_27` with `confirm`, `cancel` and `none`,
 Both files reload with `/hs reload`. A typo falls back to the built-in layout and logs a warning
 rather than leaving you a screen with no buttons on it.
 
-With `allow-player-choice: true` every player picks for themselves:
-
-```
-/hs ui modern
-/hs ui dialog
-/hs ui default     # follow the server setting again
-```
-
-The main menu also carries a **Menu style** button, so a player can flip between the two without
-leaving the spawner they are looking at.
-
-Their choice lives in `ui_modes.yml` — its own small file, not the spawner database, so a database
-blip can never lock anyone out of the menus. A player who never runs the command simply follows the
-server default and never appears in the file.
-
-**Both styles drive the same code.** Every chest button calls the identical action the dialog button
-calls — withdrawing, selling, stacking, upgrading, filtering — so a fix lands in both at once and
-they cannot drift apart. Only the layout differs.
-
-Where a chest genuinely cannot do what a dialog does, it is replaced rather than dropped:
-
-- the bulk-withdraw slider becomes preset buttons (1, 5, 20 pages, or everything);
-- the stack slider becomes ±1 / ±8 / ±64 and *add everything*;
-- naming a network — the one thing a chest has no field for — closes the menu and captures your next
-  chat line instead (type `cancel` to back out).
-
-Every click inside a chest menu is cancelled before it runs, including shift-clicks and number-key
-swaps, so an icon can never be taken out and a real item can never be shoved in.
-
-Bedrock players are unaffected by all of this: Geyser cannot render Java dialogs, so they keep
-getting native Bedrock forms whichever mode the server is in.
+Every click inside a menu is cancelled before it runs, including shift-clicks and number-key swaps,
+so an icon can never be taken out and a real item can never be shoved in.
 
 ---
 
@@ -172,18 +144,14 @@ getting native Bedrock forms whichever mode the server is in.
 
 | | |
 |---|---|
-| Server | Paper 1.21.6 or newer (Folia supported) |
+| Server | Paper 1.21.x (Folia supported) |
 | Java | 21 |
 | Optional | Vault (selling/upgrades), EconomyShopGUI or ShopGUIPlus (prices), Floodgate (Bedrock) |
 | Clients | Java and Bedrock (see below) |
 
-The plugin refuses to enable below 1.21.6, because the Dialog API does not exist there.
-
----
-
 ## Installing
 
-1. Drop `HavocSpawners-1.5.0.jar` into `plugins/`.
+1. Drop `HavocSpawners-2.0.0.jar` into `plugins/`.
 2. Start the server once to generate `plugins/HavocSpawners/`.
 3. Edit `config.yml`, then `/hs reload`.
 
@@ -237,8 +205,7 @@ arc out in front of you instead of piling up on your feet, so you can aim them i
 minecart or a shulker. Tune it with `throw-from-look`, `throw-strength` and `pickup-delay-ticks`, or
 set `throw-from-look: false` to go back to plain drops underfoot.
 
-Every withdrawal dialog also carries an *Into my inventory instead of the ground* toggle, so a player
-can override `prefer-player-inventory` per action.
+The bulk-withdraw screen shows where items are going, which follows `prefer-player-inventory`.
 
 Three ways to pull items out:
 
@@ -281,7 +248,6 @@ rather than lifetime averages, and `/hs top` ranks the best earners.
 | `/hs near [radius]` | `havocspawners.command.near` | Lists spawners around you |
 | `/hs top` | `havocspawners.command.top` | Top earning spawners |
 | `/hs prices` | `havocspawners.command.use` | Sell price list |
-| `/hs ui dialog\|modern` | *(none)* | Choose how the menus look, per player |
 | `/hs give <player> mob\|item <TYPE> [amount] [stack] [level]` | `havocspawners.command.give` | Gives a spawner item |
 | `/hs import yaml\|sqlite\|mysql` | `havocspawners.command.import` | SmartSpawner import |
 | `/hs reload` | `havocspawners.command.reload` | Reloads every config file |
@@ -329,7 +295,6 @@ Feature permissions: `havocspawners.use`, `.stack`, `.break`, `.changetype`, `.s
 | `upgrades.yml` | The upgrade ladder |
 | `lang/en_US.yml` | Chat messages (MiniMessage) — copy the folder to add a language |
 | `gui_layouts/*.yml` | Chest-GUI button layouts (storage, sell confirmation) |
-| `ui_modes.yml` | Per-player menu style, written only for players who chose one |
 
 ---
 
@@ -357,7 +322,7 @@ break or interact event first is respected automatically. No per-plugin integrat
 No Gradle wrapper is committed; the CI workflow pins the Gradle version instead.
 
 ```bash
-gradle build        # -> build/libs/HavocSpawners-1.5.0.jar
+gradle build        # -> build/libs/HavocSpawners-2.0.0.jar
 ```
 
 GitHub Actions (`.github/workflows/build.yml`) builds on every push and uploads the jar as an
@@ -368,19 +333,18 @@ publish a GitHub release with the jar attached.
 
 ## Java and Bedrock
 
-Bedrock clients **cannot see Java dialog screens** — Geyser does not translate those packets — so on
-a cross-play server a Bedrock player right-clicking a spawner would get nothing at all. HavocSpawners
-detects them through Floodgate and sends the same screens as **native Bedrock forms** instead.
+Bedrock clients get **native Bedrock forms** rather than chest inventories, which read far better on
+touch. HavocSpawners detects them through Floodgate; Java players are unaffected.
 
 Everything is covered: the spawner menu, storage browser, per-item actions, bulk withdraw (with real
 Bedrock sliders and a toggle), sell confirmation, stacking, upgrades, automation, networks, filters,
 analytics, the spawner browser, leaderboard and price list. Every button routes through the exact
-same code the Java dialogs use, so behaviour is identical — only the presentation differs.
+same code the chest menus use, so behaviour is identical — only the presentation differs.
 
 The Floodgate and Cumulus APIs are reached entirely by reflection, so:
 
 - there is **no extra dependency** to install or keep in version-sync;
-- with Floodgate absent, `available()` stays false and every player simply keeps the Java dialogs;
+- with Floodgate absent, `available()` stays false and every player simply keeps the chest menus;
 - if a future Geyser release renames something, the forms degrade to a logged warning rather than an
   error spam or a broken menu.
 
@@ -561,11 +525,12 @@ again. Storage, stack size, level and type were never affected, so nothing is lo
 
 ## Theming
 
-The house theme is red on white. Every colour the plugin draws — dialogs *and* chat — comes from two
+The house theme is red on white. Every colour the plugin draws — menus *and* chat — comes from two
 places, both editable without touching the jar:
 
-- `config.yml` → `theme:` — the seven dialog colours (`accent`, `accent-dim`, `good`, `warn`, `bad`,
-  `ink`, `faint`). Any `#rrggbb` value works; an invalid one falls back to the built-in default.
+- `config.yml` → `theme:` — the seven colours (`accent`, `accent-dim`, `good`, `warn`, `bad`, `ink`,
+  `faint`) used by every frame, button name, tooltip and bar. Any `#rrggbb` value works; an invalid
+  one falls back to the built-in default.
 - `lang/en_US.yml` — the chat messages, written in MiniMessage, so they carry their own colours.
 
 Change either and run `/hs reload`. No rebuild.
@@ -574,7 +539,7 @@ Change either and run `/hs reload`. No rebuild.
 
 ## Known scope
 
-- Dialog labels are English only; their colours are themeable but the wording is not yet in `lang/`.
+- Menu labels are English only; their colours are themeable but the wording is not yet in `lang/`.
 - Holograms are stubbed behind `hologram.enabled` and not yet rendered.
 - Shop integrations are read-only price lookups (EconomyShopGUI, ShopGUIPlus) reached reflectively,
   so a shop plugin update can never break spawner selling.
